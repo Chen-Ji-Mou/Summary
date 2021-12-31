@@ -226,7 +226,7 @@ Handler 的同步屏障机制是基于一种 target 字段为 null 的 message �
   - 第二级缓存：内存缓存，LruCache，缓存**已不被界面所使用却仍存在于内存中**的图片资源
   - 第三级缓存：磁盘缓存，DiskLruCache，缓存**根据策略写入磁盘**的图片资源
 
-![Glide 缓存机制](https://note.youdao.com/yws/api/personal/file/A5C0503F0AEF403F87CF56DA01829543?method=download&shareKey=455d53673ea7b680b28e00933742d806)
+![Glide 缓存机制](https://note.youdao.com/yws/api/personal/file/WEB9b560a8f311723207e80e585ae062968?method=download&shareKey=88e254d7494ff46006513640c503db1c)
 
 - 加载优化：根据控件的宽高缩放图片的分辨率
 
