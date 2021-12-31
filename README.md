@@ -1,5 +1,4 @@
 # Android
-
 ## Activity  
 
 [Android全面解析之Activity生命周期](https://juejin.cn/post/6892745298209308680)
@@ -1506,7 +1505,6 @@ public static void loop()
 		...... 
 	}
 }
-
 ```
 
 注意到 `msg.target.dispatchMessage(msg)` 这行代码的执行前后，先后执行了两次 `Printer#println` 函数。
@@ -1849,20 +1847,20 @@ Google BreakPad 是一个跨平台的崩溃转储和分析框架和工具集合�
 > If you're using the ndk-build build system, you can follow
 > these simple steps:
 >
-> 1/ Include android/google_breakpad/Android.mk from your own
->   project's Android.mk
+>   1/ Include android/google_breakpad/Android.mk from your own
+>      project's Android.mk
 >
->   This can be done either directly, or using ndk-build's
->   import-module feature.
+>      This can be done either directly, or using ndk-build's
+>      import-module feature.
 >
-> 2/ Link the library to one of your modules by using:
+>   2/ Link the library to one of your modules by using:
 >
->   LOCAL_STATIC_LIBRARIES += breakpad_client
+>      LOCAL_STATIC_LIBRARIES += breakpad_client
 >
 > NOTE: The client library requires a C++ STL implementation,
->    which you can select with APP_STL in your Application.mk
+>       which you can select with APP_STL in your Application.mk
 >
->    It has been tested succesfully with both STLport and GNU libstdc++
+>       It has been tested succesfully with both STLport and GNU libstdc++
 
 按照文档中的介绍，如果我们使用 Android.mk 文件就可以非常简单地把 BreakPad 引入到我们工程中，但是目前 NDK 默认的构建工具为：CMake，因此我们需要做一次移植
 
@@ -2029,7 +2027,6 @@ public class CrashReport
     
     private static native void initBreakpad(String path);
 }
-
 ```
 
 如果出现了 NDK Crash，就会在我们指定的目录：`/sdcard/Android/Data/[packageName]/cache/native_crash` 下生成 NDK Crash 的信息文件
@@ -2048,7 +2045,6 @@ minidump 是由微软开发的用于崩溃上传的文件格式
 
 ```
 minidump_stackwalk xxxx.dump > crash.txt
-
 ```
 
 crash.txt 中的内容大致为
