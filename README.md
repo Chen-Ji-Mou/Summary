@@ -510,8 +510,6 @@ Activity 中 View 的绘制流程是在 `onResume` 函数回调之后才开始�
 
 ![](https://note.youdao.com/yws/api/personal/file/AB1103D66EE24C9DAEF5C367333EFAB3?method=download&shareKey=4964945fcf9ca7aa3dab3a849441f2f5)
 
-
-
 ## IPC
 
 [Binder 浅析（上）](https://juejin.cn/post/6976198889833988127)
@@ -526,9 +524,58 @@ Activity 中 View 的绘制流程是在 `onResume` 函数回调之后才开始�
 * ContentProvider
 * Socket
 
-### 为什么可以通过 Bundle 实现 IPC 通信？
+### 为什么使用 Bundle 而不用 HashMap 传输数据？
 
-因为 Bundle 实现了 Parcelable 接口，Parcelable 是 Android 原生提供的序列化方案，我们可以通过将数据添加入 Bundle 中，通过 intent / binder 将 Bundle 发送给其他进程
+|          | Bundle     | HashMap      |
+| -------- | ---------- | ------------ |
+| IPC 方式 | Parcelable | Serializable |
+
+Serializable 通过字节流传输，基于硬盘，同时内部还使用到了反射，可能会触发 GC，性能较低，对于 Android 进程间小数据量通信来说有些得不偿失
+
+而 Parcelable 通过 Binder 传输，基于内存，性能明显高于 Serializable 这一方式
+
+### Intent 本身可以通过 putExtra 函数传输数据，为什么还要用 Bundle？
+
+```java
+// Intent.java
+private Bundle mExtras;
+
+public Intent putExtra(String name, int value)
+{
+	if (mExtras == null)
+    {
+		mExtras = new Bundle();
+	}
+	mExtras.putInt(name, value);
+	return this;
+}
+
+public Intent putExtras(Bundle extras)
+{
+	if (mExtras == null)
+	{
+		mExtras = new Bundle();
+	}
+	mExtras.putAll(extras);
+	return this;
+}
+```
+
+`putExtra` 函数有多个重载形式，其实现都大同小异
+
+可以看到 `putExtra` 函数实际上也是通过 Bundle 进行传输，Intent 内部会持有一个 Bundle
+
+当我们通过 `putExtras` 函数设置我们自定义的 Bundle 时，会将我们 Bundle 中的数据全部添入 Intent 内部的 Bundle 中
+
+### Bundle 的最大内存限制？Bundle 传输有什么要求？
+
+Bundle 实现了 Parcelable，其底层基于 Binder 进行传输，Binder 对于传输的数据具有大小限制，其大小不能超过 1M-8K
+
+经过 Bundle 传输的数据，其类型必须是基础数据类型、实现了 Serializable / Parcelable 的数据类型
+
+### Bundle 内部的数据结构？数据如何存储的？
+
+Bundle 内部通过 ArrayMap 存储数据
 
 ### 文件共享可靠吗？为什么？
 
@@ -538,9 +585,17 @@ Activity 中 View 的绘制流程是在 `onResume` 函数回调之后才开始�
 
 因此文件共享不适用于高并发数据同步的 IPC 场景下，使用文件共享进行 IPC 通信，要妥善处理并发读 / 写的问题
 
-### Messenger 如何实现 IPC？
+### Android 系统为什么会设计出 ContentProvider？
 
+* **提供一种 IPC 方式**
 
+  由系统来管理 ContentProvider 的创建、生命周期及访问的线程分配，简化我们实现 IPC 的步骤
+
+  我们只需要通过 ContentResolver 访问 ContentProvider 所提示的数据接口，而不需要担心它所在进程是否启动
+
+* **更好的数据访问权限管理**
+
+  ContentProvider 可以对开发的数据进行权限设置，不同的 Uri 可以对应不同的权限，只有符合权限要求的组件才能访问到 ContentProvider 的具体操作
 
 ### ContentProvider 如何实现 IPC？
 
@@ -760,7 +815,15 @@ Uri 的组成为：**标准前缀 + authorities + 具体要访问的内容**
 * authorities：ContentProvider 在 AndroidManifest 文件中声明的唯一标识
 * 具体要访问的内容：例如数据库中的哪一张数据表
 
+### ContentProvider 如何实现权限管理？
+
+
+
 ### AIDL 原理？AIDL 函数是在 Service 线程池中调用的，这个线程池是 Service 自己创建的吗？
+
+
+
+### Messenger 原理？
 
 
 
