@@ -1,5 +1,5 @@
 # Android
-## Activity  
+## Activity
 
 [Android全面解析之Activity生命周期](https://juejin.cn/post/6892745298209308680)
 
@@ -9,35 +9,47 @@
 
 ###  从桌面点击一个图标之后，到界面显示，这个过程发生了什么？ 
 
-手机桌面其实是一个叫做 Launcher 的 App，当我们点击桌面上的应用图标后，就会调用到  `Launcher#startActivitySafely` 函数去启动目标应用的 LaunchActivity。
+手机桌面其实是一个叫做 Launcher 的 App，当我们点击桌面上的应用图标后，就会调用到  `Launcher#startActivitySafely` 函数去启动目标应用的 LaunchActivity
 
-之后 Launcher 进程就会请求 AMS 去启动目标 Activity， AMS 进程会进行一系列的验证工作，如判断目标 Activity 实例是否已经存在、启动模式是什么、有没有在 AndroidManifest.xml 文件中注册等等。
+之后 Launcher 进程就会请求 AMS 去启动目标 Activity， AMS 进程会进行一系列的验证工作，如判断目标 Activity 实例是否已经存在、启动模式是什么、有没有在 AndroidManifest.xml 文件中注册等等
 
-这些工作结束后，AMS会发现此时 App 进程还没有被创建，就会请求 Zygote 进程去创建 App 进程。
+这些工作结束后，AMS会发现此时 App 进程还没有被创建，就会请求 Zygote 进程去创建 App 进程
 
-当 App 进程创建结束后，就会进行初始化，并通知 AMS；AMS 收到来自 App 进程的通知后，就会将创建 Activity 的一系列操作封装成事务（ ClientTransaction ）发送给 App 进程。
+当 App 进程创建结束后，就会进行初始化，并通知 AMS；AMS 收到来自 App 进程的通知后，就会将创建 Activity 的一系列操作封装成事务（ ClientTransaction ）发送给 App 进程
 
-App 进程收到来自 AMS 的事务后，根据事务创建目标 Activity，并回调目标 Activity 的生命周期。 
+App 进程收到来自 AMS 的事务后，根据事务创建目标 Activity，并回调目标 Activity 的生命周期
 
-### A Activity 打开 B Activity 时都有哪些生命周期被回调？
+### 从 A Activity 启动 B Activity 的生命周期变化？
 
-当 B Activity 的 launchMode 为 standard 时，生命周期变化是：
+* 当 B Activity 的 launchMode 为 standard 时，生命周期变化是：
 
- `A.onPause` --> `B.onCreate` --> `B.onStart` --> `B.onResume` --> `A.onStop`
+   `A.onPause` --> `B.onCreate` --> `B.onStart` --> `B.onResume` --> `A.onStop`
 
-当 B Activity 的 launchMode 为 singleTop 时，如果发生了复用，生命周期的变化是：
+* 当 B Activity 的 launchMode 为 singleTop 时
 
- `B.onPause` -> `B.onNewIntent` -> `B.onResume`
+  * 如果发生了复用，就说明是**自己启动自己**，生命周期的变化是：
 
-当 B Activity 的 launchMode 为 singleTask / singleInstance 时，如果发生了复用，生命周期的变化是：
+     `A.onPause` -> `A.onNewIntent` -> `A.onResume`
 
-`A.onPause` -> `B.onNewIntent` -> `B.onRestart` -> `B.onStart` -> `B.onResume` -> `A.onStop`
+  * 如果没有发生复用，生命周期的变化是：
 
-### B Activity 返回 A Activity 时都有哪些生命周期被回调？
+     `A.onPause` --> `B.onCreate` --> `B.onStart` --> `B.onResume` --> `A.onStop`
 
-B.onPause --> A.onRestart --> A.onStart --> A.onResume --> B.onStop --> B.onDestroy
+* 当 B Activity 的 launchMode 为 singleTask / singleInstance 时
 
-### 能说说常见的四种启动模式吗？常见的应用场景是什么？
+  * 如果发生了复用，生命周期的变化是：
+
+     `A.onPause` --> `B.onRestart` --> `B.onStart` --> `B.onNewIntent` --> `B.onResume` --> `A.onStop`
+
+  * 如果没有发生复用，生命周期的变化是：
+
+     `A.onPause` --> `B.onCreate` --> `B.onStart` --> `B.onResume` --> `A.onStop`
+
+### 从 B Activity 返回 A Activity 的生命周期变化？
+
+`B.onPause` --> `A.onRestart` --> `A.onStart` --> `A.onResume` --> `B.onStop` --> `B.onDestroy`
+
+### 能说说 Activity 的四种启动模式吗？常见的应用场景是什么？
 
 常见的启动模式分别是  `android:launchMode`  的四种属性值：
 
@@ -52,7 +64,7 @@ singleTop 是栈顶复用模式，如果当前 Task 的栈顶就是目标 Activi
 
 singleTask 是全局单例模式，如果系统中已经有了目标 Activity 的实例，就会将该实例所在的 Task 设置为前台 Task，并复用该实例，回调该实例的 `onNewIntent` 函数；如果该实例的上方有别的 Activity 实例，就将这些 Activity 实例移除；
 
-singleInstance 是单实例模式，如果系统中已经有了目标 Activity 的实例，就会将该实例所在的 Task 设置为前台 Task，并复用该实例，回调该实例的 `onNewIntent` 函数；同时 Task 内只允许存在目标 Activity 的单一实例。
+singleInstance 是单实例模式，如果系统中已经有了目标 Activity 的实例，就会将该实例所在的 Task 设置为前台 Task，并复用该实例，回调该实例的 `onNewIntent` 函数；同时 Task 内只允许存在目标 Activity 的单一实例
 
 应用场景：
 
@@ -65,15 +77,15 @@ singleInstance 是单实例模式，如果系统中已经有了目标 Activity �
 
 ### 弹出 Dialog 对当前显示的 Activity 的生命周期有什么影响？
 
-会回调当前 Activity 的 `onPause` 函数，并不会回调 `onStop` 函数。
+会回调当前 Activity 的 `onPause` 函数，并不会回调 `onStop` 函数
 
-因为 `onStop` 函数只有当 Activity **完全不可见**的时候才会被回调，通常只有当 Activity 被移至后台才会被调用。
+因为 `onStop` 函数只有当 Activity **完全不可见**的时候才会被回调，通常只有当 Activity 被移至后台才会被调用
 
-弹出 Dialog 只是让当前显示的 Activity 失去焦点并没有让其完全不可见，所以不会回调 Activity 的 `onStop` 函数。
+弹出 Dialog 只是让当前显示的 Activity 失去焦点并没有让其完全不可见，所以不会回调 Activity 的 `onStop` 函数
 
 ### onActivityResult 什么时候会被回调？
 
-`onActivityResult` 函数不属于 Activity 的生命周期，所以它会优先于生命周期函数而执行。
+`onActivityResult` 函数不属于 Activity 的生命周期，所以它会优先于生命周期函数而执行
 
 从 B Activity 返回 A Activity，生命周期变化是：
 
@@ -92,9 +104,119 @@ ANR 产生的原因：
   - 后台 Service：onCreate、onStart、onBind 等生命周期函数在 200s 内没有执行结束
 - ContentProviderTimeout：ContentProvider 在 10s 内没有处理完成当前事务
 
-onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直接触发 ANR。
+onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直接触发 ANR
 
-只不过死循环阻塞了主线程，如果此时用户触摸屏幕想触发控件的点击事件，就会因为点击事件没有在 5s 内被处理而触发 ANR。 
+只不过死循环阻塞了主线程，如果此时用户触摸屏幕想触发控件的点击事件，就会因为点击事件没有在 5s 内被处理而触发 ANR
+
+## Broadcast
+
+### BroadcastReciver 静态注册与动态注册的区别？
+
+
+
+### 有序 Broadcast 和无序 Broadcast 的区别？
+
+
+
+### Broadcast 和 LocalBroadcast 的区别？
+
+
+
+### Broadcast 发送和接收过程？
+
+
+
+### BroadcastReceiver 有哪几种区别？分别在哪个进程中？为什么本地 Receiver 不可以用于线程间通信？onReceiver 在哪个线程中？
+
+
+
+### BroadcastReceiver 没有收到 Broadcast 的原因？超过五秒后收到的原因？
+
+
+
+### EventBus 和 Broadcast 各自的优劣？
+
+
+
+### Broadcast 可以跨进程么？如果可以，是通过什么实现的？
+
+
+
+## Service
+
+### Activity 和 Service 有什么区别（Service 存在的意义是什么）？
+
+
+
+### startService 与 bindService 的区别？生命周期？应用场景？
+
+
+
+### Activity 与 Service 之间如何通信？
+
+
+
+### Service 如何保活？
+
+
+
+### 当内存不足时 Service 被杀死了，如何重启这个 Service？
+
+
+
+### Service 与 IntentService 的区别？
+
+
+
+### Service 和 Thread 都可以用来执行后台任务，为什么选 Serice 而不选 Thread（Service 与 Thread 的区别）？
+
+
+
+## ContentProvider
+
+### Android 系统为什么会设计出 ContentProvider？
+
+* **提供一种 IPC 方式**
+
+  由系统来管理 ContentProvider 的创建、生命周期及访问的线程分配，简化我们实现 IPC 的步骤
+
+  我们只需要通过 ContentResolver 访问 ContentProvider 所提示的数据接口，而不需要担心它所在进程是否启动
+
+* **更好的数据访问权限管理**
+
+  ContentProvider 可以对开发的数据进行权限设置，不同的 Uri 可以对应不同的权限，只有符合权限要求的组件才能访问到 ContentProvider 的具体操作
+
+### ContentProvider 如何实现权限管理？
+
+
+
+### ContentProvider 与 SQLite 的区别？
+
+
+
+### ContentProvider 如何实现 IPC 通信？
+
+[点击跳转](#ContentProvider 如何实现 IPC？)
+
+### ContentProvider 的启动流程？
+
+
+
+### ContentProvider 的生命周期？
+
+
+
+### ContentProvider 的设计模式？
+
+
+
+### ContentProvider 原理？
+
+
+
+### ContentProvider 是如何保证操作数据库原子性的？
+
+
 
 ## Handler
 
@@ -102,49 +224,49 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
 ### 一个线程有几个 Handler？
 
-Handler可以创建无数个。Handler对于用户发送消息操作进行了封装，相当于生产者，可以创建无数个。 
+Handler 可以创建无数个，Handler 对于用户发送消息操作进行了封装，相当于生产者，可以创建无数个
 
 ### 一个线程有几个 Looper？如何保证？
 
-一个线程只能绑定一个 looper 对象。
+一个线程只能绑定一个 looper 对象
 
-每个线程会在自己 ThreadLocalMap 中保存与自己绑定的 looper 对象引用，Key 是 Looper.sThreadLocal 这个字段。
+每个线程会在自己 ThreadLocalMap 中保存与自己绑定的 looper 对象引用，Key 是 Looper.sThreadLocal 这个字段
 
-这个字段是 static final 的，所以每个线程只会保存一个looper对象引用。
+这个字段是 static final 的，所以每个线程只会保存一个looper对象引用
 
-当调用 `Looper#prepare` 函数创建 looper 对象的时候，会先确定当前线程是否已经保存了一个 looper 对象引用；如果已经保存过了，说明是二次创建，抛出异常。
+当调用 `Looper#prepare` 函数创建 looper 对象的时候，会先确定当前线程是否已经保存了一个 looper 对象引用；如果已经保存过了，说明是二次创建，抛出异常
 
 ### Handler 内存泄漏原因？ 为什么其他的内部类没有说过有这个问题？
 
-Handler 内存泄漏原因是由于 **Handler 可以设置延时消息**和 **Message 会持有 Handler 对象**导致的。
+Handler 内存泄漏原因是由于 **Handler 可以设置延时消息**和 **Message 会持有 Handler 对象**导致的
 
-一般 Handler 对象的存活是跟着四大组件的生命周期的，但是由于 **Handler 可以设置延时消息**，有可能导致当组件的生命周期结束的时候，Message 还没有被处理。
+一般 Handler 对象的存活是跟着四大组件的生命周期的，但是由于 **Handler 可以设置延时消息**，有可能导致当组件的生命周期结束的时候，Message 还没有被处理
 
-这时由于 **Message 持有了 Handler 对象**，如果 Handler 对象中又调用了定义在组件中的函数，就会导致 Handler 对象持有了组件对象（Java语法，内部类调用外部类函数会持有外部类对象），此时就会导致 GC 无法将组件对象进行回收，造成**内存泄露**。
+这时由于 **Message 持有了 Handler 对象**，如果 Handler 对象中又调用了定义在组件中的函数，就会导致 Handler 对象持有了组件对象（Java语法，内部类调用外部类函数会持有外部类对象），此时就会导致 GC 无法将组件对象进行回收，造成**内存泄露**
 
-我们平时使用的内部类虽然也会持有外部类对象，但是这些内部类的存活是跟着组件的生命周期；当组件生命周期结束后，组件对象和内部类对象会被一起回收，因此不会造成**内存泄漏**。
+我们平时使用的内部类虽然也会持有外部类对象，但是这些内部类的存活是跟着组件的生命周期；当组件生命周期结束后，组件对象和内部类对象会被一起回收，因此不会造成**内存泄漏**
 
-解决该问题的最有效的方法是：**将 Handler 定义成静态的内部类，在内部持有组件的弱引用。**
+解决该问题的最有效的方法是：**将 Handler 定义成静态的内部类，在内部持有组件的弱引用**
 
 ### 为何主线程可以直接 new Handler？如果想要在子线程中 new Handler 要做些什么准备？
 
-new Handler 需要对 Looper 进行初始化。需要先调用 `Looper#prepare` 函数创建 looper 对象，再调用 `Looper#loop` 函数启动 Looper 轮询 MessageQueue。
+new Handler 需要对 Looper 进行初始化。需要先调用 `Looper#prepare` 函数创建 looper 对象，再调用 `Looper#loop` 函数启动 Looper 轮询 MessageQueue
 
-主线程的 Looper 初始化已经在 `ActivityThread#main` 函数中完成了，所以我们创建主线程的 Handler 时不需要再对主线程的 Looper 初始化。但如果在子线程中创建 Handler 就需要对 Looper 初始化。
+主线程的 Looper 初始化已经在 `ActivityThread#main` 函数中完成了，所以我们创建主线程的 Handler 时不需要再对主线程的 Looper 初始化。但如果在子线程中创建 Handler 就需要对 Looper 初始化
 
 ### 子线程中绑定的 Looper，消息队列无消息的时候的处理方案是什么？有什么用？
 
-当 MessageQueue 中没有消息时会让 Looper 绑定的线程睡眠，这样可以提高 CPU 资源利用率。
+当 MessageQueue 中没有消息时会让 Looper 绑定的线程睡眠，这样可以提高 CPU 资源利用率
 
 ### 既然可以存在多个 Handler 往 MessageQueue 中添加数据（发消息时各个 Handler 可能处于不同线程），那它内部是如何确保线程安全的？取消息呢？
 
-MessageQueue 中关于存取消息的操作都使用了 synchronized 锁，并且锁的是 MessageQueue.this 对象，所以同一个 MessageQueue 对象的存取消息操作都是**原子性**的，保证了**线程安全**。
+MessageQueue 中关于存取消息的操作都使用了 synchronized 锁，并且锁的是 MessageQueue.this 对象，所以同一个 MessageQueue 对象的存取消息操作都是**原子性**的，保证了**线程安全**
 
 ### 我们使用 Message 时应该如何创建它？
 
-可以直接 new 也可以通过 Message#obtain 函数创建，但是推荐通过 `Message#obtain` 函数创建。
+可以直接 new 也可以通过 Message#obtain 函数创建，但是推荐通过 `Message#obtain` 函数创建
 
-因为 `Message#obtain` 函数使用了 Message 的回收复用机制；如果通过直接 new 的方式创建 Message 容易导致 **OOM**。
+因为 `Message#obtain` 函数使用了 Message 的回收复用机制；如果通过直接 new 的方式创建 Message 容易导致 **OOM**
 
 ### Looper 死循环为什么不会导致应用卡死（ANR）？
 
@@ -159,11 +281,11 @@ MessageQueue 中关于存取消息的操作都使用了 synchronized 锁，并�
   - 后台 Service：onCreate、onStart、onBind 等生命周期函数在 200s 内没有执行结束
 - ContentProviderTimeout：ContentProvider 在 10s 内没有处理完成当前事务
 
-Android 中四大组件由 AMS 进行托管，AMS 进程与 App 进程之间通信的渠道是 ActivityThread，而 ActivityThread 的运行依托于主线程中的 Looper 死循环轮询 MessageQueue。
+Android 中四大组件由 AMS 进行托管，AMS 进程与 App 进程之间通信的渠道是 ActivityThread，而 ActivityThread 的运行依托于主线程中的 Looper 死循环轮询 MessageQueue
 
-可以说 Looper 死循环是保证四大组件的生命周期正常运行的引擎。
+可以说 Looper 死循环是保证四大组件的生命周期正常运行的引擎
 
-而 **ANR** 出现的原因是由于四大组件的生命周期出现异常导致的，Looper 死循环与 **ANR** 没有任何关系。
+而 **ANR** 出现的原因是由于四大组件的生命周期出现异常导致的，Looper 死循环与 **ANR** 没有任何关系
 
 ### MessageQueue 的休眠为什么不会导致 ANR？
 
@@ -172,112 +294,15 @@ MessageQueue 的休眠分为两种：
 - 队列中没有消息，永久睡眠线程
 - 未到消息的目标处理时刻，睡眠线程等待时刻，可自动唤醒
 
-无论哪种情况，都不满足 **ANR** 产生的条件。
+无论哪种情况，都不满足 **ANR** 产生的条件
 
 ### 你了解 Handler 的同步屏障机制吗？是怎样实现的？
 
-同步屏障的作用是阻碍同步消息，只让异步消息通过。我们日常开发中发送的 message 基本都是同步消息。
+同步屏障的作用是阻碍同步消息，只让异步消息通过。我们日常开发中发送的 message 基本都是同步消息
 
-Handler 的同步屏障机制是基于一种 target 字段为 null 的 message 类型来实现的。
+Handler 的同步屏障机制是基于一种 target 字段为 null 的 message 类型来实现的
 
-当 target 字段为 null 的 message 被 `MessageQueue#next` 函数取出时，就会开启同步屏障，轮询 MessageQueue 中的异步消息。
-
-## 图片加载
-
-[Android中一张图片占据的内存大小是如何计算](https://www.cnblogs.com/dasusu/p/9789389.html)
-
-[Glide 浅析（上）](https://juejin.cn/post/6980599769055887368)
-
-[Glide 浅析（下）](https://juejin.cn/post/6981643538622578695)
-
-### 一张图片所占据的内存大小如何计算？
-
-图片大小的计算公式是：分辨率（图片宽×高）* 每个像素点的大小
-
-但是在 Android 中，图片数据经过解码加载成 Bitmap 后，分辨率可能会发生变化，因此图片占用的实际内存大小就有可能发生变化。
-
-例如：通过 `Bitmap.decodeResource` 函数加载 res 目录下的资源图片时，`Bitmap.decodeResource` 函数内部会根据图片资源所存放的不同路径进行一次分辨率的转换，因此通过 `Bitmap.decodeResource` 函数加载同一张资源图片有可能所占用内存的大小是不同的。
-
-### 实现一个图片加载框架，需要考虑什么？
-
-- 异步加载：需要两个线程池，一个用于网络加载，一个用于磁盘和内存加载
-- 线程切换：Handler
-- 缓存策略：三级缓存
-  - 第一级缓存：普通的 List 集合
-  - 第二级缓存：LruCache
-  - 第三级缓存：DiskLruCache
-- 防止OOM：对加载的图片进行压缩（降低分辨率）
-- 防止内存泄漏：软引用（第一级缓存）
-
-###  LaunchActivity 同时加载的图片太多如何优化？
-
-- 使用线程池
-- 对图片的分辨率进行压缩
-- 设置图片像素点的数据格式，减小像素点大小
-
-###  view 的大小比图片小如何优化？
-
-根据 view 的大小对于图片的分辨率进行压缩。
-
-### Glide 是如何实现图片加载优化的？
-
-- 缓存优化：三级缓存
-  - 第一级缓存：活动缓存，ArrayList，缓存**仍被界面所使用**的图片资源
-  - 第二级缓存：内存缓存，LruCache，缓存**已不被界面所使用却仍存在于内存中**的图片资源
-  - 第三级缓存：磁盘缓存，DiskLruCache，缓存**根据策略写入磁盘**的图片资源
-
-![Glide 缓存机制](https://note.youdao.com/yws/api/personal/file/WEB9b560a8f311723207e80e585ae062968?method=download&shareKey=88e254d7494ff46006513640c503db1c)
-
-- 加载优化：根据控件的宽高缩放图片的分辨率
-
-Glide 在执行加载图片的请求时，会先判断是否调用了 `override` 函数指定图片的分辨率；如果没有指定，就根据控件的 LayoutParams 缩放图片的分辨率。
-
-所以 Glide 加载时是先对图片压缩再将图片加载进内存，通过  `BitmapFactory#decodeStream` 函数并传入 BitmapFactory.Options 实现。
-
-### 使用 Glide 偶尔会出现内存溢出问题，请说说大概是什么原因？
-
-Glide 活动缓存中的资源跟随通过 `Glide#with` 函数传入的 context 的生命周期而变化。如果传入的 context 不合适，会导致 Glide 活动缓存中的资源得不到回收，就有可能导致内存溢出。 
-
-### Glide 里的运行时缓存，为什么要设置两种不同的类型？
-
-因为 Lru 算法的特点就是会将最近最少使用的资源回收，而对于实际的使用场景中，很有可能会在一个界面中使用大量的图片资源
-
-如果使用 Lru 算法来直接缓存还在 UI 界面上显示的资源，就有可能会造成用户在回退浏览之前的图片时，出现重复网络请求原先图片资源的情况，这样不仅消耗了用户的流量还重复对图片进行压缩处理，占用多余内存的同时加载图片也很缓慢
-
-活动缓存缓存的是仍在 UI 界面上显示的资源，Glide 设置三级缓存的目的就是**最大程度上减少重复网络请求原先图片资源的情况发生**
-
-### Glide 加载一个 100x100 的图片，是否会先缩放后再加载？如果再把这张图片放到一个 300x300 的 view 上会怎样？
-
-Glide 在执行加载图片的请求时，会先通过计算确定图片的目标宽高。如果我们没有调用 `override` 函数指定具体的目标宽高，那么 Glide 会根据所要显示图片的 view 的 LayoutParams 进行综合计算。
-
-当目标宽高得到后，就会根据目标宽高以及其他参数（例如：数据源信息）构建 Key。这个 Key 不仅唯一标识缓存中的资源，也唯一标识 Glide 加载图片的请求操作。
-
-也就是说当目标宽高改变之后，即使数据源信息相同，Glide 也会把同一张图片的加载请求看成两个不同的请求。
-
-所以如果将一张 100x100 的图片资源放到一个 300x300 的 view 上，Glide 会执行一个新的加载 300x300 的图片的请求。即使这张图片是同一张图片。
-
-Glide 不会直接将图片的完整尺寸全部加载到内存中。Glide 会先通过计算确定图片的最终目标宽高，这样通过 `BitmapFactory#decodeStream` 函数解码的时候就降低了图片的分辨率，可以有效优化图片的占用内存，从而帮助我们节省内存开支。
-
-### 为什么选择 Glide 不选择其他的图片加载框架？
-
-#### Glide VS Picasso
-
-- Glide 更加省内存，可以通过 `format` 函数按需调整像素点大小，默认为 ARGB_8888；Picasso 固定为 ARGB_8888。
-- Glide 支持Gif；Picasso 并不支持。
-
-#### Glide VS Fresco
-
-- Fresco 低版本有优势，占用部分 native 内存，但是高版本一样是 java 内存。
-- Fresco 加载对图片大小有限制；Glide 基本没有。
-- Fresco 推荐使用 SimpleDraweeView，涉及到 UI 界面，这就不得不考虑迁移的成本。
-- Fresco 有很多 native 的实现，想改源码成本要大的多；Glide 源码全由 java 编写。
-- Glide 提供 TransFormation 帮助处理图片；Fresco 并没有。
-
-### Glide 的几个显著的优点？
-
-- 生命周期的管理
-- 高效的缓存机制
-- Bitmap 对象池：Glide 提供了一个 BitmapPool 来保存 Bitmap 对象。简单来说就是当需要加载一个 Bitmap 的时候，会根据图片的参数去池子里找到一个合适的 Bitmap 对象，如果没有就重新创建。BitMapPool 同样是根据 Lru 算法来工作的，从而提高性能。
+当 target 字段为 null 的 message 被 `MessageQueue#next` 函数取出时，就会开启同步屏障，轮询 MessageQueue 中的异步消息
 
 ## 事件分发
 
@@ -391,11 +416,11 @@ View默认是不支持的。
 
 ### 如何有效处理嵌套滑动的场景？有了解过嵌套滑动机制吗？
 
-嵌套滑动的场景可以通过嵌套滑动机制进行有效处理。
+嵌套滑动的场景可以通过嵌套滑动机制进行有效处理
 
-嵌套滑动机制依托于事件分发机制，嵌套滑动机制就是为了解决嵌套滑动而设计的，可以说嵌套滑动是事件分发机制的一个补全。
+嵌套滑动机制依托于事件分发机制，嵌套滑动机制就是为了解决嵌套滑动而设计的，可以说嵌套滑动是事件分发机制的一个补全
 
-嵌套滑动机制是通过使用 NestedScrollingChild 和 NestedScrollingParent 接口来实现的。
+嵌套滑动机制是通过使用 NestedScrollingChild 和 NestedScrollingParent 接口来实现的
 
 ### 能大致说明一下 NestedScrollingChild 和 NestedScrollingParent 接口中函数的用途吗？
 
@@ -458,7 +483,7 @@ NestedScrollingParent：
 
 ### 如何加载 xml 布局文件？
 
-可以通过调用 `LayoutInflater#inflate` 函数传入对应的 xml 文件资源 id 来加载对应的 xml 布局。
+可以通过调用 `LayoutInflater#inflate` 函数传入对应的 xml 文件资源 id 来加载对应的 xml 布局
 
 在 `LayoutInflater#inflate` 函数中，会先调用 `LayoutInflater#createViewFromTag` 函数将 xml 文件中的根标签解析；
 
@@ -468,17 +493,17 @@ NestedScrollingParent：
 
 ![](https://note.youdao.com/yws/api/personal/file/0CB1914B27A84321AEBB7A68973CAEA3?method=download&shareKey=810a2fe6ae90f6923bdf00fac75c7198)
 
-最终返回整个解析 xml 文件得到的 view 树。
+最终返回整个解析 xml 文件得到的 view 树
 
 ### Activity 中的视图是在什么时候可见的？
 
-根据 Activity 启动流程，最终启动的 Activity 会回调 `ActivityThread#handleResumeActivity` 函数。
+根据 Activity 启动流程，最终启动的 Activity 会回调 `ActivityThread#handleResumeActivity` 函数
 
-在 `ActivityThread#handleResumeActivity` 函数中，会通过 `WindowManager#addView` 函数将 Activity 的 DecorView 添加到窗口中。
+在 `ActivityThread#handleResumeActivity` 函数中，会通过 `WindowManager#addView` 函数将 Activity 的 DecorView 添加到窗口中
 
-最终会调用到 `ViewRootImpl#requestLayout` 函数执行 view 树的绘制流程。
+最终会调用到 `ViewRootImpl#requestLayout` 函数执行 view 树的绘制流程
 
-绘制流程结束后，Activity 中的视图才真正可见了。
+绘制流程结束后，Activity 中的视图才真正可见了
 
 ### Window、Activity、PhoneWindow、ViewRootImpl、DecorView 之间的关系？
 
@@ -488,15 +513,15 @@ NestedScrollingParent：
 
 所有的 window 都由系统服务 wms 管理，window 在 wms 中的存在形式是 windowStatus，每一个 windowStatus 会对应着一个 ViewRootImpl，每一个 ViewRootImpl 对应着管理一个 view 树；
 
-Activity 持有了 PhoneWindow，PhoneWindow 持有了 DecorView 和一些 window 的属性参数，DecorView 是 view 树的根。
+Activity 持有了 PhoneWindow，PhoneWindow 持有了 DecorView 和一些 window 的属性参数，DecorView 是 view 树的根
 
 ### 了解 View 的绘制流程吗？
 
-Activity 中 View 的绘制流程是从 `ViewRootImpl#requestLayout` 函数开始的。
+Activity 中 View 的绘制流程是从 `ViewRootImpl#requestLayout` 函数开始的
 
 ![](https://note.youdao.com/yws/api/personal/file/3AEA27E9FC9E4D2CBA2F2ACF9145F6CA?method=download&shareKey=a7d17ffdd33196dd3e6fbce9f44c3899)
 
-`performMeasure`、`performLayout`、`performDraw` 函数会递归执行 view 树中所有 view 的 `onMeasure`、`onLayout`、`onDraw` 函数。
+`performMeasure`、`performLayout`、`performDraw` 函数会递归执行 view 树中所有 view 的 `onMeasure`、`onLayout`、`onDraw` 函数
 
 ![](https://note.youdao.com/yws/api/personal/file/DE0969AB3D3249A9A7BD8A749F8EBA43?method=download&shareKey=570593d8955fff61cc1f10107c74e382)
 
@@ -504,11 +529,118 @@ Activity 中 View 的绘制流程是从 `ViewRootImpl#requestLayout` 函数开�
 
 ![](https://note.youdao.com/yws/api/personal/file/ABF7C614E6C2423A9DE00A61E1DA0014?method=download&shareKey=360fa8829304adbee5fd17aec3163bcc)
 
-Activity 中 View 的绘制流程是在 `onResume` 函数回调之后才开始的，因此在 `onResume` 函数回调之后 Activity 中的视图仍未被绘制出来。
+Activity 中 View 的绘制流程是在 `onResume` 函数回调之后才开始的，因此在 `onResume` 函数回调之后 Activity 中的视图仍未被绘制出来
 
 ### View 的生命周期你知道吗？
 
 ![](https://note.youdao.com/yws/api/personal/file/AB1103D66EE24C9DAEF5C367333EFAB3?method=download&shareKey=4964945fcf9ca7aa3dab3a849441f2f5)
+
+## 图片加载
+
+[Android中一张图片占据的内存大小是如何计算](https://www.cnblogs.com/dasusu/p/9789389.html)
+
+[Glide 浅析（上）](https://juejin.cn/post/6980599769055887368)
+
+[Glide 浅析（下）](https://juejin.cn/post/6981643538622578695)
+
+### 一张图片所占据的内存大小如何计算？
+
+图片大小的计算公式是：分辨率（图片宽×高）* 每个像素点的大小
+
+但是在 Android 中，图片数据经过解码加载成 Bitmap 后，分辨率可能会发生变化，因此图片占用的实际内存大小就有可能发生变化
+
+例如：通过 `Bitmap.decodeResource` 函数加载 res 目录下的资源图片时，`Bitmap.decodeResource` 函数内部会根据图片资源所存放的不同路径进行一次分辨率的转换，因此通过 `Bitmap.decodeResource` 函数加载同一张资源图片有可能所占用内存的大小是不同的
+
+### 实现一个图片加载框架，需要考虑什么？
+
+- 异步加载：需要两个线程池，一个用于网络加载，一个用于磁盘和内存加载
+- 线程切换：Handler
+- 缓存策略：三级缓存
+  - 第一级缓存：普通的 List 集合
+  - 第二级缓存：LruCache
+  - 第三级缓存：DiskLruCache
+- 防止OOM：对加载的图片进行压缩（降低分辨率）
+- 防止内存泄漏：软引用（第一级缓存）
+
+###  LaunchActivity 同时加载的图片太多如何优化？
+
+- 使用线程池
+- 对图片的分辨率进行压缩
+- 设置图片像素点的数据格式，减小像素点大小
+
+###  view 的大小比图片小如何优化？
+
+根据 view 的大小对于图片的分辨率进行压缩
+
+### Glide 是如何实现图片加载优化的？
+
+- 缓存优化：三级缓存
+  - 第一级缓存：活动缓存，ArrayList，缓存**仍被界面所使用**的图片资源
+  - 第二级缓存：内存缓存，LruCache，缓存**已不被界面所使用却仍存在于内存中**的图片资源
+  - 第三级缓存：磁盘缓存，DiskLruCache，缓存**根据策略写入磁盘**的图片资源
+
+![Glide 缓存机制](https://note.youdao.com/yws/api/personal/file/WEB9b560a8f311723207e80e585ae062968?method=download&shareKey=88e254d7494ff46006513640c503db1c)
+
+- 加载优化：根据控件的宽高缩放图片的分辨率
+
+Glide 在执行加载图片的请求时，会先判断是否调用了 `override` 函数指定图片的分辨率；如果没有指定，就根据控件的 LayoutParams 缩放图片的分辨率
+
+所以 Glide 加载时是先对图片压缩再将图片加载进内存，通过  `BitmapFactory#decodeStream` 函数并传入 BitmapFactory.Options 实现
+
+### 使用 Glide 偶尔会出现内存溢出问题，请说说大概是什么原因？
+
+Glide 活动缓存中的资源跟随通过 `Glide#with` 函数传入的 context 的生命周期而变化
+
+如果传入的 context 不合适，会导致 Glide 活动缓存中的资源得不到回收，就有可能导致内存溢出
+
+### Glide 里的运行时缓存，为什么要设置两种不同的类型？
+
+因为 Lru 算法的特点就是会将最近最少使用的资源回收，而对于实际的使用场景中，很有可能会在一个界面中使用大量的图片资源
+
+如果使用 Lru 算法来直接缓存还在 UI 界面上显示的资源，就有可能会造成用户在回退浏览之前的图片时，出现重复网络请求原先图片资源的情况，这样不仅消耗了用户的流量还重复对图片进行压缩处理，占用多余内存的同时加载图片也很缓慢
+
+活动缓存缓存的是仍在 UI 界面上显示的资源，Glide 设置三级缓存的目的就是**最大程度上减少重复网络请求原先图片资源的情况发生**
+
+### Glide 加载一个 100x100 的图片，是否会先缩放后再加载？如果再把这张图片放到一个 300x300 的 view 上会怎样？
+
+Glide 在执行加载图片的请求时，会先通过计算确定图片的目标宽高。如果我们没有调用 `override` 函数指定具体的目标宽高，那么 Glide 会根据所要显示图片的 view 的 LayoutParams 进行综合计算
+
+当目标宽高得到后，就会根据目标宽高以及其他参数（例如：数据源信息）构建 Key。这个 Key 不仅唯一标识缓存中的资源，也唯一标识 Glide 加载图片的请求操作
+
+也就是说当目标宽高改变之后，即使数据源信息相同，Glide 也会把同一张图片的加载请求看成两个不同的请求
+
+所以如果将一张 100x100 的图片资源放到一个 300x300 的 view 上，Glide 会执行一个新的加载 300x300 的图片的请求。即使这张图片是同一张图片
+
+Glide 不会直接将图片的完整尺寸全部加载到内存中。Glide 会先通过计算确定图片的最终目标宽高，这样通过 `BitmapFactory#decodeStream` 函数解码的时候就降低了图片的分辨率，可以有效优化图片的占用内存，从而帮助我们节省内存开支
+
+### 为什么选择 Glide 不选择其他的图片加载框架？
+
+#### Glide VS Picasso
+
+- Glide 更加省内存，可以通过 `format` 函数按需调整像素点大小，默认为 ARGB_8888；Picasso 固定为 ARGB_8888
+- Glide 支持Gif；Picasso 并不支持
+
+#### Glide VS Fresco
+
+- Fresco 低版本有优势，占用部分 native 内存，但是高版本一样是 java 内存
+- Fresco 加载对图片大小有限制；Glide 基本没有
+- Fresco 推荐使用 SimpleDraweeView，涉及到 UI 界面，这就不得不考虑迁移的成本
+- Fresco 有很多 native 的实现，想改源码成本要大的多；Glide 源码全由 java 编写
+- Glide 提供 TransFormation 帮助处理图片；Fresco 并没有
+
+### Glide 的几个显著的优点？
+
+- 生命周期的管理
+
+- 高效的缓存机制
+
+- Bitmap 对象池
+
+  Glide 提供了一个 BitmapPool 来保存 Bitmap 对象
+
+  简单来说就是当需要加载一个 Bitmap 的时候，会根据图片的参数去池子里找到一个合适的 Bitmap 对象，如果没有就重新创建
+
+  BitmapPool 同样是根据 Lru 算法来工作的，从而提高性能
 
 ## IPC
 
@@ -534,7 +666,7 @@ Serializable 通过字节流传输，基于硬盘，同时内部还使用到了�
 
 而 Parcelable 通过 Binder 传输，基于内存，性能明显高于 Serializable 这一方式
 
-### Intent 本身可以通过 putExtra 函数传输数据，为什么还要用 Bundle？
+### Intent 本身可以通过 putExtra 函数传输数据，为什么还需要有 Bundle？
 
 ```java
 // Intent.java
@@ -584,18 +716,6 @@ Bundle 内部通过 ArrayMap 存储数据
 在 Windows 上，一个文件如果被加了排斥锁将会导致其他线程无法对其进行访问，包括读和写；而在 Linux 上，对于并发读 / 写文件没有作任何限制，甚至两个线程同时对同一个文件进行写操作都是被允许的，尽管这可能会出问题
 
 因此文件共享不适用于高并发数据同步的 IPC 场景下，使用文件共享进行 IPC 通信，要妥善处理并发读 / 写的问题
-
-### Android 系统为什么会设计出 ContentProvider？
-
-* **提供一种 IPC 方式**
-
-  由系统来管理 ContentProvider 的创建、生命周期及访问的线程分配，简化我们实现 IPC 的步骤
-
-  我们只需要通过 ContentResolver 访问 ContentProvider 所提示的数据接口，而不需要担心它所在进程是否启动
-
-* **更好的数据访问权限管理**
-
-  ContentProvider 可以对开发的数据进行权限设置，不同的 Uri 可以对应不同的权限，只有符合权限要求的组件才能访问到 ContentProvider 的具体操作
 
 ### ContentProvider 如何实现 IPC？
 
@@ -815,21 +935,170 @@ Uri 的组成为：**标准前缀 + authorities + 具体要访问的内容**
 * authorities：ContentProvider 在 AndroidManifest 文件中声明的唯一标识
 * 具体要访问的内容：例如数据库中的哪一张数据表
 
-### ContentProvider 如何实现权限管理？
-
-
-
 ### AIDL 原理？AIDL 函数是在 Service 线程池中调用的，这个线程池是 Service 自己创建的吗？
 
+我们可以在 aidl 文件中定义用于 IPC 通信的接口
 
+经过编译后，Android Studio 会动态为我们生成一个与 aidl 文件同名的 Java 类，其中含有两个静态内部类，Stub 和 Proxy
 
-### Messenger 原理？
+Stub 是一个静态抽象类，对应服务端，服务端需要继承 Stub 实现对应的函数
 
+Proxy 对应客户端，其定义了对应服务端的代理函数，代理函数会通过 Binder 机制与服务端进行 IPC 通信，从而调用到服务端中对应的同名函数
 
+AIDL 最常见的搭配就是 Activity 与 Service 的绑定，通过 AIDL，让 Activity 能够 IPC 调用 Service 中的函数
+
+通过 AIDL 调用 Service 中的函数，函数会运行在一个由 Binder 驱动控制的线程中，这种线程简称为 Binder 线程
+
+Binder 线程由 Binder 驱动通过 Binder 线程池管理，Binder 线程池在进程启动的时候就会被创建
+
+### 什么是 Messenger？Messenger 如何使用？
+
+如果说 AIDL 对于 IPC 来说还是不够简便，谷歌还为我们设计出了 Messenger
+
+Messenger 等同在 AIDL 之上再进行了一层封装，并使用 Handler 来接收来自其他进程发来的信息
+
+#### 服务端
+
+```java
+public class MessengerService extends Service
+{
+    /**
+     * 服务端的 Messenger
+     */
+    Messenger mServiceMessenger = new Messenger(new Handler()
+	{
+        @Override
+        public void handleMessage(final Message msg)
+        {
+            if (msg != null && msg.arg1 == ConfigHelper.MSG_ID_CLIENT)
+            {
+                if (msg.getData() == null)
+                {
+                    return;
+                }
+                // 接收来自客户端的信息
+                String content = (String) msg.getData().get(ConfigHelper.MSG_CONTENT);
+                // 回复信息给客户端
+                Message replyMsg = Message.obtain();
+                replyMsg.arg1 = ConfigHelper.MSG_ID_SERVER;
+                Bundle bundle = new Bundle();
+                bundle.putString(ConfigHelper.MSG_CONTENT, "收到你的消息了，态度好点");
+                replyMsg.setData(bundle);
+
+                try
+                {
+                    // 发送回信给客户端
+                    msg.replyTo.send(replyMsg);
+                }
+                catch (Exception e)
+                {
+                    e.printStackTrace();
+                }
+            }
+        }
+    });
+
+    @Nullable
+    @Override
+    public IBinder onBind(final Intent intent)
+    {
+        return mServiceMessenger.getBinder();
+    }
+}
+```
+
+#### 客户端
+
+```java
+public class MainActivity extends Activity
+{
+    /**
+     * 客户端的 Messenger
+     */
+    Messenger mClientMessenger = new Messenger(new Handler()
+	{
+        @Override
+        public void handleMessage(final Message msg)
+        {
+            if (msg != null && msg.arg1 == ConfigHelper.MSG_ID_SERVER)
+            {
+                if (msg.getData() == null)
+                {
+                    return;
+                }
+				// 接收来自服务端的信息
+                String content = (String) msg.getData().get(ConfigHelper.MSG_CONTENT);
+            }
+        }
+    });
+
+    // 服务端的 Messenger
+    private Messenger mServerMessenger;
+
+    private ServiceConnection mServiceConnection = new ServiceConnection()
+    {
+        @Override
+        public void onServiceConnected(final ComponentName name, final IBinder service)
+        {
+            mServerMessenger = new Messenger(service);
+        }
+
+        @Override
+        public void onServiceDisconnected(final ComponentName name)
+        {
+            mServerMessenger = null;
+        }
+    };
+
+    @Override
+    protected void onCreate(@Nullable Bundle savedInstanceState)
+    {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+		Intent intent = new Intent(this, MessengerService.class);
+        bindService(intent, mServiceConnection, BIND_AUTO_CREATE);
+
+        Message message = Message.obtain();
+        message.arg1 = ConfigHelper.MSG_ID_CLIENT;
+        Bundle bundle = new Bundle();
+        bundle.putString(ConfigHelper.MSG_CONTENT, "能不能收到，给爷说句话");
+        message.setData(bundle);
+
+        // 指定回信方是客户端的 Messenger
+        message.replyTo = mClientMessenger;     
+
+        try
+        {
+            // 发送消息给服务端
+            mServerMessenger.send(message);
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void onDestroy()
+    {
+        super.onDestroy();
+        unbindService(mServiceConnection);
+    }
+}
+```
 
 ### 了解 mmap 吗？
 
+Linux 中通过将一个虚拟内存区域与一个磁盘上的物理内存区域关联起来，以初始化这个虚拟内存区域的内容，这个过程称为 **内存映射（memory mapping）**
 
+mmap 是 Linux 中一种实现内存映射的方式
+
+mmap 简单的讲就是 **将指定的一块虚拟内存区域与指定的一块物理内存区域建立映射关系**
+
+映射关系建立后，对这块虚拟内存区域的修改可以直接反应到物理内存上；反之物理内存中对这段区域的修改也能直接反应到虚拟内存上
+
+Binder IPC 通信的一次拷贝就是通过 mmap 来实现的
 
 ### 了解 Binder 机制吗？说一下其优缺点？
 
@@ -848,9 +1117,15 @@ Binder 通信的缺点是：
 - 需要占用线程
 - 无法传输大数据
 
-### Android 访问文件需要经历几次 IPC 通讯？
+### Android 访问文件需要经历几次拷贝？
 
+**两次拷贝**
 
+常规文件操作使用页缓存机制
+
+这样造成读文件时需要先将文件页从磁盘拷贝到页缓存中，由于页缓存处在内核空间，不能被用户进程直接寻址，所以还需要将页缓存中数据页再次拷贝到内存对应的用户空间中
+
+反之写文件时需要先将数据拷贝到内核缓存中，再由系统调用，将数据拷贝到文件中，才能完成写入
 
 ### Linux OS 中 IPC 手段有哪些？
 
