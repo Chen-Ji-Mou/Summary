@@ -9,7 +9,7 @@
 
 ###  从桌面点击一个图标之后，到界面显示，这个过程发生了什么？ 
 
-手机桌面其实是一个叫做 Launcher 的 App，当我们点击桌面上的应用图标后，就会调用到  `Launcher#startActivitySafely` 函数去启动目标应用的 LaunchActivity
+手机桌面其实是一个叫做 Launcher 的 App，当我们点击桌面上的应用图标后，就会调用到 `Launcher#startActivitySafely` 函数去启动目标应用的 LaunchActivity
 
 之后 Launcher 进程就会请求 AMS 去启动目标 Activity， AMS 进程会进行一系列的验证工作，如判断目标 Activity 实例是否已经存在、启动模式是什么、有没有在 AndroidManifest.xml 文件中注册等等
 
@@ -27,7 +27,7 @@ App 进程收到来自 AMS 的事务后，根据事务创建目标 Activity，�
 
 * 当 B Activity 的 launchMode 为 singleTop 时
 
-  * 如果发生了复用，就说明是**自己启动自己**，生命周期的变化是：
+  * 如果发生了复用，就说明是 **自己启动自己**，生命周期的变化是：
 
      `A.onPause` -> `A.onNewIntent` -> `A.onResume`
 
@@ -79,7 +79,7 @@ singleInstance 是单实例模式，如果系统中已经有了目标 Activity �
 
 会回调当前 Activity 的 `onPause` 函数，并不会回调 `onStop` 函数
 
-因为 `onStop` 函数只有当 Activity **完全不可见**的时候才会被回调，通常只有当 Activity 被移至后台才会被调用
+因为 `onStop` 函数只有当 Activity **完全不可见** 的时候才会被回调，通常只有当 Activity 被移至后台才会被调用
 
 弹出 Dialog 只是让当前显示的 Activity 失去焦点并没有让其完全不可见，所以不会回调 Activity 的 `onStop` 函数
 
@@ -236,15 +236,15 @@ Handler 可以创建无数个，Handler 对于用户发送消息操作进行了�
 
 当调用 `Looper#prepare` 函数创建 looper 对象的时候，会先确定当前线程是否已经保存了一个 looper 对象引用；如果已经保存过了，说明是二次创建，抛出异常
 
-### Handler 内存泄漏原因？ 为什么其他的内部类没有说过有这个问题？
+### Handler 内存泄漏原因？ 为什么其他的内部类没有听说过有这个问题？
 
-Handler 内存泄漏原因是由于 **Handler 可以设置延时消息**和 **Message 会持有 Handler 对象**导致的
+Handler 内存泄漏原因是由于 **Handler 可以设置延时消息** 和 **Message 会持有 Handler 对象** 导致的
 
 一般 Handler 对象的存活是跟着四大组件的生命周期的，但是由于 **Handler 可以设置延时消息**，有可能导致当组件的生命周期结束的时候，Message 还没有被处理
 
-这时由于 **Message 持有了 Handler 对象**，如果 Handler 对象中又调用了定义在组件中的函数，就会导致 Handler 对象持有了组件对象（Java语法，内部类调用外部类函数会持有外部类对象），此时就会导致 GC 无法将组件对象进行回收，造成**内存泄露**
+这时由于 **Message 持有了 Handler 对象**，如果 Handler 对象中又调用了定义在组件中的函数，就会导致 Handler 对象持有了组件对象（Java语法，内部类调用外部类函数会持有外部类对象），此时就会导致 GC 无法将组件对象进行回收，造成 **内存泄露**
 
-我们平时使用的内部类虽然也会持有外部类对象，但是这些内部类的存活是跟着组件的生命周期；当组件生命周期结束后，组件对象和内部类对象会被一起回收，因此不会造成**内存泄漏**
+我们平时使用的内部类虽然也会持有外部类对象，但是这些内部类的存活是跟着组件的生命周期；当组件生命周期结束后，组件对象和内部类对象会被一起回收，因此不会造成 **内存泄漏**
 
 解决该问题的最有效的方法是：**将 Handler 定义成静态的内部类，在内部持有组件的弱引用**
 
@@ -260,7 +260,7 @@ new Handler 需要对 Looper 进行初始化。需要先调用 `Looper#prepare` 
 
 ### 既然可以存在多个 Handler 往 MessageQueue 中添加数据（发消息时各个 Handler 可能处于不同线程），那它内部是如何确保线程安全的？取消息呢？
 
-MessageQueue 中关于存取消息的操作都使用了 synchronized 锁，并且锁的是 MessageQueue.this 对象，所以同一个 MessageQueue 对象的存取消息操作都是**原子性**的，保证了**线程安全**
+MessageQueue 中关于存取消息的操作都使用了 synchronized 锁，并且锁的是 MessageQueue.this 对象，所以同一个 MessageQueue 对象的存取消息操作都是 **原子性** 的，保证了 **线程安全**
 
 ### 我们使用 Message 时应该如何创建它？
 
@@ -705,10 +705,6 @@ Bundle 实现了 Parcelable，其底层基于 Binder 进行传输，Binder 对�
 
 经过 Bundle 传输的数据，其类型必须是基础数据类型、实现了 Serializable / Parcelable 的数据类型
 
-### Bundle 内部的数据结构？数据如何存储的？
-
-Bundle 内部通过 ArrayMap 存储数据
-
 ### 文件共享可靠吗？为什么？
 
 文件共享不可靠，因为 Android 是基于 Linux 内核的操作系统，Linux 对于文件读写的限制不同于 Windows
@@ -947,7 +943,7 @@ Proxy 对应客户端，其定义了对应服务端的代理函数，代理函�
 
 AIDL 最常见的搭配就是 Activity 与 Service 的绑定，通过 AIDL，让 Activity 能够 IPC 调用 Service 中的函数
 
-通过 AIDL 调用 Service 中的函数，函数会运行在一个由 Binder 驱动控制的线程中，这种线程简称为 Binder 线程
+通过 AIDL 调用 Service 中的函数，函数会运行在一个由 Binder 驱动控制的线程中，这种线程被称为 Binder 线程
 
 Binder 线程由 Binder 驱动通过 Binder 线程池管理，Binder 线程池在进程启动的时候就会被创建
 
@@ -1010,7 +1006,7 @@ public class MessengerService extends Service
 #### 客户端
 
 ```java
-public class MainActivity extends Activity
+public class MainActivity extends AppCompatActivity
 {
     /**
      * 客户端的 Messenger
@@ -1129,15 +1125,286 @@ Binder 通信的缺点是：
 
 ### Linux OS 中 IPC 手段有哪些？
 
-
+* 管道
+* 信号
+* 消息队列
+* 共享内存
+* 信号量
+* Socket
 
 ### 了解 Socket 如何进行 IPC 吗？说一下其优缺点？
 
-待整理
+使用 Socket 进行 IPC 主要是通过网络来实现的
 
-### Socket 通信的使用场景？
+Socket 封装了 TCP / IP 协议，使得我们可以直接通过调用 Socket 的 API 来实现对于网络的访问
 
-待整理
+#### 服务端
+
+```java
+package com.example.chenjimou.socketserver;
+
+public class ServerActivity extends AppCompatActivity
+{
+    Thread mServerThread;
+    PrintWriter mPrintWriter;
+    BufferedReader mBufferedReader;
+    ServerSocket mServerSocket;
+    boolean mIsConnectClient = false;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState)
+    {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_Server);
+
+        mServerThread = new Thread()
+        {
+			@Override
+			public void run()
+            {
+				connectClient();
+			}
+		}.start();
+    }
+
+    @Override
+    protected void onResume()
+    {
+        super.onResume();
+        mPrintWriter.println("收到你的消息了，态度好点");
+    }
+
+    @Override
+    public void onDestroy()
+    {
+        super.onDestroy();
+        disConnectClient();
+    }
+    
+    void connectClient()
+    {
+        // 防止重复连接
+        if (mIsConnectClient)
+            return;
+        
+        try
+        {
+            // 创建 ServerSocket，监听 8088 端口
+            mServerSocket = new ServerSocket(8088);
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+
+        // 循环监听端口直至连接成功
+        while (mClientSocket == null)
+        {
+            try
+            {
+                // 接收 Socket，与客户端建立连接
+                mClientSocket = mServerSocket.accept();
+                mPrintWriter = new PrintWriter(new BufferedWriter(
+                    	new OutputStreamWriter(mClientSocket.getOutputStream())), true);
+                mIsConnectClient = true;
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+        }
+        
+        try
+        {
+            mBufferedReader = new BufferedReader(
+                	new InputStreamReader(mClientSocket.getInputStream()));
+            do {
+                // 接收客户端的消息
+                String msg = bufferedReader.readLine();
+                // 延时一秒后再获取客户端消息，避免服务端压力过大
+                SystemClock.sleep(1000);
+            } while (!Thread.currentThread().isInterrupted());
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+        catch (InterruptedException e)
+        {
+            // 如果当前线程被中断就直接退出
+            return;
+        }
+    }
+
+    void disConnectClient()
+    {
+        mIsConnectServer = false;
+        if (mClientSocket != null)
+        {
+            try
+            {
+                mClientSocket.shutdownOutput();
+                mClientSocket.shutdownInput();
+                mClientSocket.close();
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+        }
+        if (mServerSocket != null)
+        {
+            try
+            {
+                mServerSocket.close();
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+        }
+        // 中断监听线程
+        mServerThread.interrupt();
+    }
+}
+```
+
+#### 客户端
+
+```java
+package com.example.chenjimou.socketclient;
+
+public class ClientActivity extends AppCompatActivity
+{
+    Thread mClientThread;
+    PrintWriter mPrintWriter;
+    BufferedReader mBufferedReader;
+    Socket mClientSocket;
+    boolean mIsConnectServer = false;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState)
+    {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_client);
+        
+        mClientThread = new Thread()
+        {
+			@Override
+			public void run()
+            {
+				connectServer();
+			}
+		}.start();
+    }
+    
+    @Override
+    protected void onResume()
+    {
+        super.onResume();
+        mPrintWriter.println("能不能收到，给爷说句话");
+    }
+
+    @Override
+    protected void onDestroy()
+    {
+        super.onDestroy();
+        disConnectServer();
+    }
+
+    void connectServer()
+    {
+        // 防止重复连接
+        if (mIsConnectServer)
+            return;
+
+		// 连接失败累计次数
+        int count = 0;
+
+        // 重复发起连接请求直至连接成功
+        while (mClientSocket == null)
+        {
+            try
+            {
+                // 创建 Socket，与服务端建立连接
+                mClientSocket = new Socket("10.10.14.160", 8088);
+                mPrintWriter = new PrintWriter(new BufferedWriter(
+                    	new OutputStreamWriter(mClientSocket.getOutputStream())), true);
+                mIsConnectServer = true;
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+                // 延时一秒后再发起连接请求，避免服务端压力过大
+                SystemClock.sleep(1000);
+                count++;
+                // 失败超过五次就直接退出
+                if (count == 5)
+                {
+                    return;
+                }
+            }
+        }
+
+        try
+        {
+            mBufferedReader = new BufferedReader(
+                	new InputStreamReader(mClientSocket.getInputStream()));
+            do {
+                // 接收服务端的消息
+                String msg = bufferedReader.readLine();
+                // 延时一秒后再获取服务端消息，避免客户端压力过大
+                SystemClock.sleep(1000);
+            } while (!Thread.currentThread().isInterrupted());
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+        catch (InterruptedException e)
+        {
+            // 如果当前线程被中断就直接退出
+            return;
+        }
+    }
+
+    void disConnectServer()
+    {
+        mIsConnectServer = false;
+        if (mClientSocket != null)
+        {
+            try
+            {
+                mClientSocket.shutdownOutput();
+                mClientSocket.shutdownInput();
+                mClientSocket.close();
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+        }
+        // 中断监听线程
+        mClientThread.interrupt();
+    }
+}
+```
+
+Socket 的优点在于并不仅仅可以用于跨进程通信，还可以用于跨设备通信
+
+因为 Socket 基于网络，所以相较于其他 IPC 方式而言，Socket 是一种较为复杂的通信方式
+
+通常客户端需要开启单独的监听线程来接收从服务端发过来的数据
+
+客户端发送数据给服务端，服务端也需要开启单独的监听线程来接收从客户端发过来的数据
+
+并且由于 Socket 基于网络，导致数据传输具有较大的延时，客户端和服务端都需要对接收到的数据进行同步，这是一件很麻烦的事情
+
+### Socket IPC 通信的使用场景？
+
+由于 Socket 最大的优点在于可以用于跨设备通信，因此 Socket 更多的是用在物联网场景中
+
+利用蓝牙、WiFi等硬件模块与手机设备进行 Socket 连接并通信
 
 ### 常见 IPC 类型之间的比较？
 
@@ -1424,8 +1691,6 @@ DataStore 是 Google Jetpack 推出的一种数据存储解决方案，允许我
 
 [Jetpack 是什么？](https://zhuanlan.zhihu.com/p/334350927)
 
-[Android Jetpack系列之MVVM使用及封装](https://juejin.cn/post/7015159285076197390)
-
 [Android ViewModel，再学不会你砍我](https://juejin.cn/post/6844903919064186888)
 
 [将Room的使用方式塞到脑子里](https://juejin.cn/post/6992875656707211271)
@@ -1448,15 +1713,377 @@ Google 将所有**目前仍被使用且打算继续维护的组件**都归到了
 
 ### 你了解 MVVM 架构吗？简单说一下如何实现？
 
+MVVM 架构如下图所示
 
+![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/9f1fc5a47d584e4ca78fda24565cc160~tplv-k3u1fbpfcp-watermark.awebp)
 
-### Jetpack 架构组件和 MVVM 架构的关系？ViewModel 怎么实现保存恢复数据的？LiveData 的 onChanged 回调时机？
+- Model 层：业务相关的数据 (如网络请求数据、本地数据库数据等) 及其对数据的处理
+- View 层：页面视图 (Activity / Fragment)，负责接收用户输入、发起数据请求及展示结果页面
+- ViewModel 层：M 与 V 之间的桥梁，负责业务逻辑
 
+MVVM 架构的特点在于：ViewModel 不会持有 View 层的引用，而是 View 层会通过观察者模式监听 ViewModel 层的数据变化；当有新数据时，View 层能自动收到新数据并刷新界面
 
+为了实现上面的 MVVM 架构模式，Jetpack 提供了多种组件来实现，具体来说有 Lifecycle、LiveData、ViewModel 等
 
-### ViewModel 是怎么做到在 Activity 销毁重建新实例之后还能保持不变的呢？
+Lifecycle 负责生命周期相关
 
+LiveData 赋予类可观察，同时还是生命周期感知的 (其内部使用了 Lifecycle)
 
+ViewModel 旨在以注重生命周期的方式存储和管理界面相关的数据
+
+实现举例：
+
+#### View 层
+
+```java
+public class MainActivity extends AppCompatActivity
+{
+    ActivityMainBinding mBinding;
+    MainViewModel mViewModel;
+
+    final List<Student> students = new ArrayList<>();
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState)
+    {
+        super.onCreate(savedInstanceState);
+        mBinding = ActivityMainBinding.inflate(getLayoutInflater());
+        setContentView(mBinding.getRoot());
+        init();
+    }
+
+    private void init()
+    {
+        // 创建 ViewModel
+        mViewModel = new ViewModelProvider(this, 
+				new ViewModelProvider.NewInstanceFactory()).get(MainViewModel.class);
+        // 观察 ViewModel 中的 LiveData，如果 LiveData 有变化就会回调
+        mViewModel.data.observe(this, students :: addAll);
+    }
+
+    @Override
+    protected void onResume()
+    {
+        super.onResume();
+        // 调用 ViewModel 中的函数，使 ViewModel 请求 Model 获取数据
+        mViewModel.getData();
+    }
+}
+```
+
+#### ViewModel 层
+
+```java
+public class MainViewModel extends ViewModel
+{
+    // LiveData
+    public MutableLiveData<List<Student>> data = new MutableLiveData<>();
+
+    // Model
+    MainModel model = MainModel.getInstance();
+
+    public void getData()
+    {
+        // 请求 Model 获取数据
+        List<Student> result = model.findAll();
+        // 将返回的数据放入 LiveData 中，通知 View 更新 UI
+        data.setValue(result);
+    }
+}
+```
+
+#### Model 层
+
+```java
+public class MainModel
+{
+    // 获取 Dao 实例
+    StudentDao studentDao = StudentDatabase.getInstance().getStudentDao();
+
+    public List<Student> findAll()
+    {
+        // 从 Room 数据库中查找数据并返回
+        return studentDao.findAll();
+    }
+}
+```
+
+### Jetpack 架构组件和 MVVM 架构的关系？
+
+MVVM 架构是一种开发模式，而 Jetpack 架构组件是用于实现 MVVM 架构的工具
+
+### ViewModel 是怎么做到在 Activity 被销毁重建新实例之后还能保持不变的呢？
+
+当 Activity 被销毁重建后，会重走一遍生命周期函数，从 `onCreate` 函数开始
+
+通常我们会在 `onCreate` 函数中获取 ViewModel，Google 也是推荐这么做的
+
+```java
+public class MainActivity
+{
+    MainViewModel mViewModel;
+    
+    @Override
+    protected void onCreate(Bundle savedInstanceState)
+    {
+        super.onCreate(savedInstanceState);
+        mBinding = ActivityMainBinding.inflate(getLayoutInflater());
+        setContentView(mBinding.getRoot());
+
+        // 获取 ViewModel
+        mViewModel = new ViewModelProvider(this, BaseApplication.sViewModelFactory)
+										   .get(MainViewModel.class);
+    }
+}
+```
+
+#### ViewModelProvider.get()
+
+```java
+public <T extends ViewModel> T get(@NonNull Class<T> modelClass)
+{
+    // 获取 Class 对象的类名
+	String canonicalName = modelClass.getCanonicalName();
+	if (canonicalName == null)
+    {
+		throw new IllegalArgumentException(
+            	"Local and anonymous classes can not be ViewModels");
+	}
+	return get(DEFAULT_KEY + ":" + canonicalName, modelClass);
+}
+
+public <T extends ViewModel> T get(@NonNull String key, @NonNull Class<T> modelClass)
+{
+    // 从 ViewModelStore 中搜索 ViewModel 是否已被创建过
+	ViewModel viewModel = mViewModelStore.get(key);
+
+    // 将搜索结果与传入的 Class 对象进行比对，
+    // 如果一致就返回 ViewModelStore 中保存的 ViewModel 对象
+	if (modelClass.isInstance(viewModel))
+    {
+		return (T) viewModel;
+	}
+    else
+    {
+		if (viewModel != null) { }
+	}
+
+    // 如果 ViewModelStore 中搜索不到，
+    // 就通过 ViewModelProvider.Factory 创建一个 ViewModel 对象
+	if (mFactory instanceof KeyedFactory)
+    {
+		viewModel = ((KeyedFactory) (mFactory)).create(key, modelClass);
+	}
+    else
+    {
+		viewModel = (mFactory).create(modelClass);
+	}
+
+    // 将新创建的 ViewModel 对象存入 ViewModelStore
+	mViewModelStore.put(key, viewModel);
+
+    // 返回新创建的 ViewModel 对象
+	return (T) viewModel;
+}
+```
+
+ViewModelStore 本质上就是一个 HashMap，以 ViewModel 的实现类名为 key，ViewModel 对象为 value，缓存所有创建过的 ViewModel
+
+那 ViewModelStore 是什么时候被创建的呢？
+
+#### new ViewModelProvider()
+
+```java
+public ViewModelProvider(@NonNull ViewModelStoreOwner owner, @NonNull Factory factory)
+{
+	this(owner.getViewModelStore(), factory);
+}
+```
+
+owrer 就是我们传入的 Activity / Fragment 上下文，以 Activity 为例
+
+```java
+public ViewModelStore getViewModelStore()
+{
+	......
+
+	// 如果 ViewModelStore 没有被创建
+	if (mViewModelStore == null)
+    {
+        // 获取 NonConfigurationInstances，还原 ViewModelStore
+		NonConfigurationInstances nc =
+				(NonConfigurationInstances) getLastNonConfigurationInstance();
+		if (nc != null)
+        {
+            mViewModelStore = nc.viewModelStore;
+		}
+        // 如果 ViewModelStore 没有被保存就重新创建
+		if (mViewModelStore == null)
+        {
+			mViewModelStore = new ViewModelStore();
+		}
+	}
+    // 返回 ViewModelStore 对象
+	return mViewModelStore;
+}
+
+// frameworks/base/core/java/android/app/Activity.java
+public Object getLastNonConfigurationInstance()
+{
+	return mLastNonConfigurationInstances != null
+			? mLastNonConfigurationInstances.activity : null;
+}
+```
+
+既然 ViewModelStore 通过 NonConfigurationInstances 保存，那 NonConfigurationInstances 是什么时候被创建的？
+
+#### ActivityThread.handleDestroyActivity()
+
+在 Activity 被销毁时，AMS 会通知 APP 进程并回调 `ActivityThread.handleDestroyActivity()` 函数
+
+```java
+// frameworks/base/core/java/android/app/ActivityThread.java
+public void handleDestroyActivity(IBinder token, boolean finishing, 
+                                  int configChanges, boolean getNonConfigInstance, 
+                                  String reason
+){
+    ......
+
+	ActivityClientRecord r = performDestroyActivity(token, finishing,
+                configChanges, getNonConfigInstance, reason);
+    
+    ......
+}
+
+ActivityClientRecord performDestroyActivity(IBinder token, boolean finishing, 
+                                            int configChanges, 
+                                            boolean getNonConfigInstance, // 默认为 true
+                                            String reason
+){
+    ......
+
+	if (r != null)
+    {
+        ......
+
+        // getNonConfigInstance 默认为 true，if 命中
+		if (getNonConfigInstance)
+        {
+			try
+            {
+                // 执行 Activity 的 retainNonConfigurationInstances 函数
+                // 创建 NonConfigurationInstances
+				r.lastNonConfigurationInstances
+                            = r.activity.retainNonConfigurationInstances();
+			}
+            catch (Exception e)
+            {
+				if (!mInstrumentation.onException(r.activity, e))
+                {
+					throw new RuntimeException(
+                                "Unable to retain activity "
+                                + r.intent.getComponent().toShortString()
+                                + ": " + e.toString(), e);
+				}
+			}
+		}
+        
+        ......
+    }
+    
+    ......
+}
+
+// frameworks/base/core/java/android/app/Activity.java
+NonConfigurationInstances retainNonConfigurationInstances()
+{
+    // 调用 onRetainNonConfigurationInstance 函数
+	Object activity = onRetainNonConfigurationInstance();
+
+    ......
+
+	// 创建 NonConfigurationInstances
+	NonConfigurationInstances nci = new NonConfigurationInstances();
+	nci.activity = activity;
+
+    ......
+
+	return nci;
+}
+
+public final Object onRetainNonConfigurationInstance()
+{
+	......
+
+	ViewModelStore viewModelStore = mViewModelStore;
+
+	......
+
+	// 创建 NonConfigurationInstances
+	NonConfigurationInstances nci = new NonConfigurationInstances();
+    // 将 ViewModelStore 保存在 NonConfigurationInstances 中
+	nci.viewModelStore = viewModelStore;
+	return nci;
+}
+```
+
+#### ActivityThread.handleLaunchActivity()
+
+当 Activity 重建后，AMS 会通知 APP 进程并回调 `ActivityThread.handleLaunchActivity()` 函数
+
+```java
+// frameworks/base/core/java/android/app/ActivityThread.java
+public Activity handleLaunchActivity(ActivityClientRecord r,
+        PendingTransactionActions pendingActions, Intent customIntent)
+{
+    ......
+
+    final Activity a = performLaunchActivity(r, customIntent);
+
+    ......
+}
+
+private Activity performLaunchActivity(ActivityClientRecord r, Intent customIntent)
+{
+    ......
+
+	// 执行 Activity 的 attach 函数进行初始化
+	activity.attach(appContext, this, getInstrumentation(), r.token,
+			r.ident, app, r.intent, r.activityInfo, title, r.parent,
+			r.embeddedID, r.lastNonConfigurationInstances, config,
+			r.referrer, r.voiceInteractor, window, r.configCallback);
+    
+    ......
+}
+
+// frameworks/base/core/java/android/app/Activity.java
+final void attach(Context context, 
+				  ......
+                  NonConfigurationInstances lastNonConfigurationInstances, 
+                  ......
+){
+    ......
+
+	// 对 mLastNonConfigurationInstances 字段赋值
+	mLastNonConfigurationInstances = lastNonConfigurationInstances;
+
+    ......
+}
+```
+
+整体流程图：
+
+![](https://note.youdao.com/yws/api/personal/file/WEB6aaea138bc4e4620e79466fdc305cb07?method=download&shareKey=e9571f6e4cfbfd5fac2b5aab5e432120)
+
+所以 ViewModel 是通过 NonConfigurationInstances 进行保存的
+
+在 Activity 销毁之前将 ViewModel 保存在 NonConfigurationInstances 中
+
+当 Activity 重新创建时再将 ViewModel 从 NonConfigurationInstances 中取出
+
+### LiveData 的 onChanged 回调时机？
+
+LiveData 相当于是一个容器，当 LiveData 中的数据发生变化时，就会通知观察者 (Activity / Fragment)，回调 onChanged
 
 ### Room 使用的基本流程了解吗？
 
