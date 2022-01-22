@@ -196,7 +196,7 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
 ### ContentProvider 如何实现 IPC 通信？
 
-[点击跳转](#ContentProvider 如何实现 IPC？)
+[传送门](#ContentProvider 如何实现 IPC？)
 
 ### ContentProvider 的启动流程？
 
