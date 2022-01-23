@@ -186,21 +186,258 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
   ContentProvider 可以对开发的数据进行权限设置，不同的 Uri 可以对应不同的权限，只有符合权限要求的组件才能访问到 ContentProvider 的具体操作
 
-### ContentProvider 如何实现权限管理？
-
-
-
-### ContentProvider 与 SQLite 的区别？
-
-
-
-### ContentProvider 如何实现 IPC 通信？
-
-[传送门](#ContentProvider 如何实现 IPC？)
-
 ### ContentProvider 的启动流程？
 
+当 App 进程启动后，会进行初始化，调用 ActivityThread 的 `main()` 函数
 
+#### ActivityThread.main()
+
+```java
+// frameworks/base/core/java/android/app/ActivityThread.java
+public static void main(String[] args)
+{
+    ......
+
+    thread.attach(false, startSeq);
+
+    ......
+}
+
+private void attach(boolean system, long startSeq)
+{
+    ......
+
+    // AIDL 调用，调用到 AMS 的 attachApplication 函数
+    final IActivityManager mgr = ActivityManager.getService();
+    mgr.attachApplication(mAppThread, startSeq);
+
+    ......
+}
+```
+
+#### ActivityManagerService.attachApplication()
+
+```java
+// frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java
+public final void attachApplication(IApplicationThread thread, long startSeq)
+{
+    ......
+
+    attachApplicationLocked(thread, callingPid, callingUid, startSeq);
+
+    ......
+}
+
+private final boolean attachApplicationLocked(
+        IApplicationThread thread, // thread = App 进程的 ApplicationThread
+        int pid, int callingUid, long startSeq
+){
+    ......
+
+    // AIDL 调用，调用到 APP 进程 ApplicationThread 的 bindApplication 函数
+    thread.bindApplication(processName, appInfo, providers,
+            app.instr.mClass,
+            profilerInfo, app.instr.mArguments,
+            app.instr.mWatcher,
+            app.instr.mUiAutomationConnection, testMode,
+            mBinderTransactionTrackingEnabled, enableTrackAllocation,
+            isRestrictedBackupMode || !normalMode, app.persistent,
+            new Configuration(getGlobalConfiguration()), app.compat,
+            getCommonServicesLocked(app.isolated),
+            mCoreSettingsObserver.getCoreSettingsLocked(),
+            buildSerial);
+
+    ......
+}
+```
+
+#### ApplicationThread.bindApplication()
+
+```java
+// frameworks/base/core/java/android/app/ActivityThread$ApplicationThread.java
+public final void bindApplication(String processName, ApplicationInfo appInfo,
+                ProviderInfoList providerList, ComponentName instrumentationName,
+                ProfilerInfo profilerInfo, Bundle instrumentationArgs,
+                IInstrumentationWatcher instrumentationWatcher,
+                IUiAutomationConnection instrumentationUiConnection, int debugMode,
+                boolean enableBinderTracking, boolean trackAllocation,
+                boolean isRestrictedBackupMode, boolean persistent, Configuration config,
+                CompatibilityInfo compatInfo, Map services, Bundle coreSettings,
+                String buildSerial, AutofillOptions autofillOptions,
+                ContentCaptureOptions contentCaptureOptions, long[]disabledCompatChanges) {
+    ......
+
+	// 发送消息 (H.BIND_APPLICATION) 给 ActivityThread 中的内部类 H (Handler)
+	sendMessage(H.BIND_APPLICATION, data);
+}
+```
+
+#### H.handleMessage()
+
+```java
+// frameworks/base/core/java/android/app/ActivityThread$H.java
+public void handleMessage(Message msg)
+{
+    switch (msg.what)
+    {
+		case BIND_APPLICATION:
+			Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "bindApplication");
+			AppBindData data = (AppBindData)msg.obj;
+			handleBindApplication(data);
+			Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
+			break;
+
+		......
+    }
+    
+    ......
+}
+```
+
+#### ActivityThread.handleBindApplication()
+
+```java
+// frameworks/base/core/java/android/app/ActivityThread.java
+private void handleBindApplication(AppBindData data)
+{
+    ......
+
+	// 创建 ContextImpl
+	final ContextImpl instrContext = ContextImpl.createAppContext(this, pi,
+                    appContext.getOpPackageName());
+
+	// 创建 mInstrumentation
+	final ClassLoader cl = instrContext.getClassLoader();
+	mInstrumentation = (Instrumentation)
+			cl.loadClass(data.instrumentationName.getClassName()).newInstance();
+    
+    ......
+
+    // 创建 Application
+    app = data.info.makeApplication(data.restrictedBackupMode, null);
+    
+    ......
+
+    // 启动 ContentProvider
+	installContentProviders(app, data.providers);
+    
+    ......
+
+	// 回调 Application 的 onCreate 函数
+	mInstrumentation.callApplicationOnCreate(app);
+
+    ......
+}
+```
+
+#### ActivityThread.installContentProviders()
+
+```java
+// frameworks/base/core/java/android/app/ActivityThread.java
+private void installContentProviders(Context context, List<ProviderInfo> providers)
+{
+	final ArrayList<ContentProviderHolder> results = new ArrayList<>();
+
+    // 遍历当前进程的 ProviderInfo (存储 ContentProvider 的信息) 列表
+	for (ProviderInfo cpi : providers)
+    {
+        ......
+
+        // 启动 ContentProvider
+		ContentProviderHolder cph = installProvider(context, null, cpi, 
+					false /*noisy*/, true /*noReleaseNeeded*/, true /*stable*/);
+		if (cph != null)
+        {
+			cph.noReleaseNeeded = true;
+			results.add(cph);
+		}
+	}
+
+	try
+    {
+        // AIDL 调用，调用到 AMS 的 publishContentProviders 函数
+        // 将这些 ContentProvider 缓存到 AMS 的 mProviderMap 中，防止重复启动
+		ActivityManager.getService().publishContentProviders(
+                    getApplicationThread(), results);
+	}
+    catch (RemoteException ex)
+    {
+		throw ex.rethrowFromSystemServer();
+	}
+}
+```
+
+#### ActivityThread.installProvider()
+
+```java
+// frameworks/base/core/java/android/app/ActivityThread.java
+private ContentProviderHolder installProvider(Context context,
+            ContentProviderHolder holder, ProviderInfo info,
+            boolean noisy, boolean noReleaseNeeded, boolean stable
+){
+    ContentProvider localProvider = null;
+    
+    ......
+
+	// 通过反射创建 ContentProvider
+	final java.lang.ClassLoader cl = c.getClassLoader();
+	LoadedApk packageInfo = peekPackageInfo(ai.packageName, true);
+	localProvider = packageInfo.getAppFactory().instantiateProvider(cl, info.name);
+	provider = localProvider.getIContentProvider();
+
+    ......
+
+	// 为此 ContentProvider 创建上下文
+	localProvider.attachInfo(c, info);
+    
+    ......
+}
+```
+
+#### ContentProvider.attachInfo()
+
+```java
+// frameworks/base/core/java/android/content/ContentProvider.java
+public void attachInfo(Context context, ProviderInfo info)
+{
+	attachInfo(context, info, false);
+}
+
+private void attachInfo(Context context, ProviderInfo info, boolean testing)
+{
+	......
+
+	if (mContext == null)
+    {
+		mContext = context;
+
+        ......
+
+		mMyUid = Process.myUid();
+        // 记录 ContentProvider 的设置 (例如访问权限、authority 等)
+		if (info != null)
+        {
+			setReadPermission(info.readPermission);
+			setWritePermission(info.writePermission);
+			setPathPermissions(info.pathPermissions);
+			mExported = info.exported;
+			mSingleUser = (info.flags & ProviderInfo.FLAG_SINGLE_USER) != 0;
+			setAuthorities(info.authority);
+		}
+
+        ......
+
+		// 回调 ContentProvider 的 onCreate 函数
+		ContentProvider.this.onCreate();
+	}
+}
+```
+
+至此，ContentProvider 的启动就完成了
+
+整体流程如下图
+
+![](https://note.youdao.com/yws/api/personal/file/WEB7235732b42fa87d990ce265f4c8a7ae2?method=download&shareKey=1c9020222749171e45ec5301d19b73fd)
 
 ### ContentProvider 的生命周期？
 
@@ -210,13 +447,21 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
 
 
-### ContentProvider 原理？
+### ContentProvider 如何实现权限管理？
+
+
+
+### ContentProvider 与 SQLite 的区别？
 
 
 
 ### ContentProvider 是如何保证操作数据库原子性的？
 
 
+
+### ContentProvider 如何实现 IPC 通信？
+
+[传送门](#ContentProvider 如何实现 IPC？)
 
 ## Handler
 
