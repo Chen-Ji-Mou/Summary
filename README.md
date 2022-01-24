@@ -176,6 +176,8 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
 ### Android 系统为什么会设计出 ContentProvider？
 
+* **隐藏数据的存储方式，对外提供统一的数据访问接口**
+
 * **提供一种 IPC 方式**
 
   由系统来管理 ContentProvider 的创建、生命周期及访问的线程分配，简化我们实现 IPC 的步骤
@@ -188,7 +190,7 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
 ### ContentProvider 的启动流程？
 
-当 App 进程启动后，会进行初始化，调用 ActivityThread 的 `main()` 函数
+当 ContentProvider 所在进程启动后，会进行初始化，调用 ActivityThread 的 `main()` 函数
 
 #### ActivityThread.main()
 
@@ -234,6 +236,15 @@ private final boolean attachApplicationLocked(
 ){
     ......
 
+	// 此时进程已经启动，mProcessesReady = true
+	boolean normalMode = mProcessesReady || isAllowedWhileBooting(app.info);
+    // 获取 APP 应用的 AndroidManifest 文件中注册的 ContentProvider 信息
+	List<ProviderInfo> providers = normalMode ? 
+        		generateApplicationProvidersLocked(app) : null;
+
+    ......
+
+    final ProviderInfoList providerList = ProviderInfoList.fromList(providers);
     // AIDL 调用，调用到 APP 进程 ApplicationThread 的 bindApplication 函数
     thread.bindApplication(processName, appInfo, providers,
             app.instr.mClass,
@@ -246,6 +257,21 @@ private final boolean attachApplicationLocked(
             getCommonServicesLocked(app.isolated),
             mCoreSettingsObserver.getCoreSettingsLocked(),
             buildSerial);
+
+    ......
+}
+
+private final List<ProviderInfo> generateApplicationProvidersLocked(ProcessRecord app)
+{
+    ......
+
+	// AIDL 调用，调用到 PackageManagerService 的 queryContentProviders 函数，
+	// 获取 APP 应用的 AndroidManifest 文件中注册的 ContentProvider 信息
+	providers = AppGlobals.getPackageManager()
+			.queryContentProviders(app.processName, app.uid,
+					STOCK_PM_FLAGS | PackageManager.GET_URI_PERMISSION_PATTERNS
+							| MATCH_DEBUG_TRIAGED_MISSING, /*metadastaKey=*/ null)
+			.getList();
 
     ......
 }
@@ -343,7 +369,7 @@ private void installContentProviders(Context context, List<ProviderInfo> provide
     {
         ......
 
-        // 启动 ContentProvider
+        // 通过调用 installProvider 函数，生成 ContetProviderHolder 对象
 		ContentProviderHolder cph = installProvider(context, null, cpi, 
 					false /*noisy*/, true /*noReleaseNeeded*/, true /*stable*/);
 		if (cph != null)
@@ -355,8 +381,9 @@ private void installContentProviders(Context context, List<ProviderInfo> provide
 
 	try
     {
-        // AIDL 调用，调用到 AMS 的 publishContentProviders 函数
-        // 将这些 ContentProvider 缓存到 AMS 的 mProviderMap 中，防止重复启动
+        // AIDL 调用，调用到 AMS 的 publishContentProviders 函数，
+        // 通过 publishContentProviders 函数将这些 ContentProvider 进行发布，
+        // 这样其他进程就可以通过 AMS 来访问这些 ContentProvider 了
 		ActivityManager.getService().publishContentProviders(
                     getApplicationThread(), results);
 	}
@@ -437,19 +464,47 @@ private void attachInfo(Context context, ProviderInfo info, boolean testing)
 
 整体流程如下图
 
-![](https://note.youdao.com/yws/api/personal/file/WEB7235732b42fa87d990ce265f4c8a7ae2?method=download&shareKey=1c9020222749171e45ec5301d19b73fd)
+![](https://note.youdao.com/yws/api/personal/file/WEB138d5666ef23e71907c58dbcbc464611?method=download&shareKey=f1add6144e99cf7a0a934d9670701d7d)
 
 ### ContentProvider 的生命周期？
 
+当 ContentProvider 所在进程启动后，会回调 `ContentProvider.onCreate()` 函数
 
+该函数在 `Application.onCreate()` 函数之前执行
+
+### 运行在主线程的 ContentProvider 为什么不会影响主线程的 UI 操作？
+
+ContentProvider 的 `onCreate()` 是运行在 `UI` 线程的
+
+而 `query()` ，`insert()` ，`delete()` ，`update()` 是运行在线程池中的工作线程的
+
+所以调用这向个方法并不会阻塞 `ContentProvider` 所在进程的主线程，但可能会阻塞调用者所在的进程的 `UI` 线程！
+
+所以，调用 `ContentProvider` 的操作仍然要放在子线程中去做。
+
+虽然直接的 `CRUD` 的操作是在工作线程的，但系统会让你的调用线程等待这个异步的操作完成，你才可以继续线程之前的工作。
 
 ### ContentProvider 的设计模式？
 
+ContentProvider 典型实现了提供者模式
 
+对于访问方而言，无需知道数据存储的方式是什么 (如 SQLite、文件、xml 等)
+
+ContentProvider 会自动根据访问方输入的 Uri 进行匹配 (UriMatcher)，返回对应的数据
 
 ### ContentProvider 如何实现权限管理？
 
+* ContentProvider 可以设置 `android:exported` 属性，标识该 ContentProvider 是否可以被其他 APP 应用访问
 
+* ContentProvider 可以设置 `android:permission` 属性，标识访问该 ContentProvider 所需要的权限
+
+  该属性值可以任意指定一个字符串，通常使用应用程序包名作为其中的一部分，这样可以避免和其他 ContentProvider 的权限声明冲突
+
+* 还可以通过设置 `android:readPermission` / `android:writePermission` 属性进一步细化 ContentProvider 的访问权限 (读写权限分离)
+
+  需要注意的是，`android:writePermission` 与 `android:readPermission` 属性的优先级比 `android:permission` 属性的优先级高
+
+* 如果基于 SQLite 存储数据，还可以通过 Uri 和 SQLite 对数据库的访问进行权限设置
 
 ### ContentProvider 与 SQLite 的区别？
 
