@@ -112,7 +112,19 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
 ### BroadcastReciver 静态注册与动态注册的区别？
 
+* BroadcastReciver 静态注册通过在 AndroidManifest 文件中声明 receiver 标签进行注册
 
+  当 APP 应用安装时，PMS (PackageManagerService) 会解析 APK 包中的 AndroidManifest 文件，实例化广播类，并注册到广播系统中
+
+  静态注册的 BroadcastReciver 会常驻后台运行，不会因为 APP 进程的结束而停止运行，因此会增加手机的耗电量和运行时内存
+
+  为了优化 Android 系统运行，Goolge 规定在 Android 7.0 以上的系统中不能静态注册 BroadcastReciver
+
+* BroadcastReciver 动态注册通过调用 `registerReceiver()` 函数进行注册，通过调用 `unregisterReceiver()` 函数进行注销
+
+  动态注册的注册和注销需要开发者自行调用，灵活可控，不同于静态注册的注册和注销由系统管理
+
+  同时动态注册的 BroadcastReciver 比静态注册的 BroadcastReciver 优先级高
 
 ### 有序 Broadcast 和无序 Broadcast 的区别？
 
@@ -190,281 +202,19 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
 ### ContentProvider 的启动流程？
 
-当 ContentProvider 所在进程启动后，会进行初始化，调用 ActivityThread 的 `main()` 函数
+当 ContentProvider 运行所在进程与 APP 进程相同时，ContentProvider 会伴随 APP 进程初始化一起启动
 
-#### ActivityThread.main()
+总体流程如下图：
 
-```java
-// frameworks/base/core/java/android/app/ActivityThread.java
-public static void main(String[] args)
-{
-    ......
+![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/f9396e76a1304371bdef078f96adbee4~tplv-k3u1fbpfcp-zoom-1.image)
 
-    thread.attach(false, startSeq);
+当 ContentProvider 运行所在进程与 APP 进程相同时，ContentProvider 不会在 APP 进程初始化时启动
 
-    ......
-}
+当 APP 进程通过 `getContentResolver()` 函数访问 ContentProvider 时，才会触发 ContentProvider 的启动
 
-private void attach(boolean system, long startSeq)
-{
-    ......
+总体流程如下图：
 
-    // AIDL 调用，调用到 AMS 的 attachApplication 函数
-    final IActivityManager mgr = ActivityManager.getService();
-    mgr.attachApplication(mAppThread, startSeq);
-
-    ......
-}
-```
-
-#### ActivityManagerService.attachApplication()
-
-```java
-// frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java
-public final void attachApplication(IApplicationThread thread, long startSeq)
-{
-    ......
-
-    attachApplicationLocked(thread, callingPid, callingUid, startSeq);
-
-    ......
-}
-
-private final boolean attachApplicationLocked(
-        IApplicationThread thread, // thread = App 进程的 ApplicationThread
-        int pid, int callingUid, long startSeq
-){
-    ......
-
-	// 此时进程已经启动，mProcessesReady = true
-	boolean normalMode = mProcessesReady || isAllowedWhileBooting(app.info);
-    // 获取 APP 应用的 AndroidManifest 文件中注册的 ContentProvider 信息
-	List<ProviderInfo> providers = normalMode ? 
-        		generateApplicationProvidersLocked(app) : null;
-
-    ......
-
-    final ProviderInfoList providerList = ProviderInfoList.fromList(providers);
-    // AIDL 调用，调用到 APP 进程 ApplicationThread 的 bindApplication 函数
-    thread.bindApplication(processName, appInfo, providers,
-            app.instr.mClass,
-            profilerInfo, app.instr.mArguments,
-            app.instr.mWatcher,
-            app.instr.mUiAutomationConnection, testMode,
-            mBinderTransactionTrackingEnabled, enableTrackAllocation,
-            isRestrictedBackupMode || !normalMode, app.persistent,
-            new Configuration(getGlobalConfiguration()), app.compat,
-            getCommonServicesLocked(app.isolated),
-            mCoreSettingsObserver.getCoreSettingsLocked(),
-            buildSerial);
-
-    ......
-}
-
-private final List<ProviderInfo> generateApplicationProvidersLocked(ProcessRecord app)
-{
-    ......
-
-	// AIDL 调用，调用到 PackageManagerService 的 queryContentProviders 函数，
-	// 获取 APP 应用的 AndroidManifest 文件中注册的 ContentProvider 信息
-	providers = AppGlobals.getPackageManager()
-			.queryContentProviders(app.processName, app.uid,
-					STOCK_PM_FLAGS | PackageManager.GET_URI_PERMISSION_PATTERNS
-							| MATCH_DEBUG_TRIAGED_MISSING, /*metadastaKey=*/ null)
-			.getList();
-
-    ......
-}
-```
-
-#### ApplicationThread.bindApplication()
-
-```java
-// frameworks/base/core/java/android/app/ActivityThread$ApplicationThread.java
-public final void bindApplication(String processName, ApplicationInfo appInfo,
-                ProviderInfoList providerList, ComponentName instrumentationName,
-                ProfilerInfo profilerInfo, Bundle instrumentationArgs,
-                IInstrumentationWatcher instrumentationWatcher,
-                IUiAutomationConnection instrumentationUiConnection, int debugMode,
-                boolean enableBinderTracking, boolean trackAllocation,
-                boolean isRestrictedBackupMode, boolean persistent, Configuration config,
-                CompatibilityInfo compatInfo, Map services, Bundle coreSettings,
-                String buildSerial, AutofillOptions autofillOptions,
-                ContentCaptureOptions contentCaptureOptions, long[]disabledCompatChanges) {
-    ......
-
-	// 发送消息 (H.BIND_APPLICATION) 给 ActivityThread 中的内部类 H (Handler)
-	sendMessage(H.BIND_APPLICATION, data);
-}
-```
-
-#### H.handleMessage()
-
-```java
-// frameworks/base/core/java/android/app/ActivityThread$H.java
-public void handleMessage(Message msg)
-{
-    switch (msg.what)
-    {
-		case BIND_APPLICATION:
-			Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "bindApplication");
-			AppBindData data = (AppBindData)msg.obj;
-			handleBindApplication(data);
-			Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
-			break;
-
-		......
-    }
-    
-    ......
-}
-```
-
-#### ActivityThread.handleBindApplication()
-
-```java
-// frameworks/base/core/java/android/app/ActivityThread.java
-private void handleBindApplication(AppBindData data)
-{
-    ......
-
-	// 创建 ContextImpl
-	final ContextImpl instrContext = ContextImpl.createAppContext(this, pi,
-                    appContext.getOpPackageName());
-
-	// 创建 mInstrumentation
-	final ClassLoader cl = instrContext.getClassLoader();
-	mInstrumentation = (Instrumentation)
-			cl.loadClass(data.instrumentationName.getClassName()).newInstance();
-    
-    ......
-
-    // 创建 Application
-    app = data.info.makeApplication(data.restrictedBackupMode, null);
-    
-    ......
-
-    // 启动 ContentProvider
-	installContentProviders(app, data.providers);
-    
-    ......
-
-	// 回调 Application 的 onCreate 函数
-	mInstrumentation.callApplicationOnCreate(app);
-
-    ......
-}
-```
-
-#### ActivityThread.installContentProviders()
-
-```java
-// frameworks/base/core/java/android/app/ActivityThread.java
-private void installContentProviders(Context context, List<ProviderInfo> providers)
-{
-	final ArrayList<ContentProviderHolder> results = new ArrayList<>();
-
-    // 遍历当前进程的 ProviderInfo (存储 ContentProvider 的信息) 列表
-	for (ProviderInfo cpi : providers)
-    {
-        ......
-
-        // 通过调用 installProvider 函数，生成 ContetProviderHolder 对象
-		ContentProviderHolder cph = installProvider(context, null, cpi, 
-					false /*noisy*/, true /*noReleaseNeeded*/, true /*stable*/);
-		if (cph != null)
-        {
-			cph.noReleaseNeeded = true;
-			results.add(cph);
-		}
-	}
-
-	try
-    {
-        // AIDL 调用，调用到 AMS 的 publishContentProviders 函数，
-        // 通过 publishContentProviders 函数将这些 ContentProvider 进行发布，
-        // 这样其他进程就可以通过 AMS 来访问这些 ContentProvider 了
-		ActivityManager.getService().publishContentProviders(
-                    getApplicationThread(), results);
-	}
-    catch (RemoteException ex)
-    {
-		throw ex.rethrowFromSystemServer();
-	}
-}
-```
-
-#### ActivityThread.installProvider()
-
-```java
-// frameworks/base/core/java/android/app/ActivityThread.java
-private ContentProviderHolder installProvider(Context context,
-            ContentProviderHolder holder, ProviderInfo info,
-            boolean noisy, boolean noReleaseNeeded, boolean stable
-){
-    ContentProvider localProvider = null;
-    
-    ......
-
-	// 通过反射创建 ContentProvider
-	final java.lang.ClassLoader cl = c.getClassLoader();
-	LoadedApk packageInfo = peekPackageInfo(ai.packageName, true);
-	localProvider = packageInfo.getAppFactory().instantiateProvider(cl, info.name);
-	provider = localProvider.getIContentProvider();
-
-    ......
-
-	// 为此 ContentProvider 创建上下文
-	localProvider.attachInfo(c, info);
-    
-    ......
-}
-```
-
-#### ContentProvider.attachInfo()
-
-```java
-// frameworks/base/core/java/android/content/ContentProvider.java
-public void attachInfo(Context context, ProviderInfo info)
-{
-	attachInfo(context, info, false);
-}
-
-private void attachInfo(Context context, ProviderInfo info, boolean testing)
-{
-	......
-
-	if (mContext == null)
-    {
-		mContext = context;
-
-        ......
-
-		mMyUid = Process.myUid();
-        // 记录 ContentProvider 的设置 (例如访问权限、authority 等)
-		if (info != null)
-        {
-			setReadPermission(info.readPermission);
-			setWritePermission(info.writePermission);
-			setPathPermissions(info.pathPermissions);
-			mExported = info.exported;
-			mSingleUser = (info.flags & ProviderInfo.FLAG_SINGLE_USER) != 0;
-			setAuthorities(info.authority);
-		}
-
-        ......
-
-		// 回调 ContentProvider 的 onCreate 函数
-		ContentProvider.this.onCreate();
-	}
-}
-```
-
-至此，ContentProvider 的启动就完成了
-
-整体流程如下图
-
-![](https://note.youdao.com/yws/api/personal/file/WEB138d5666ef23e71907c58dbcbc464611?method=download&shareKey=f1add6144e99cf7a0a934d9670701d7d)
+![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/8b4c16109d354129be85b87400d29d47~tplv-k3u1fbpfcp-zoom-1.image)
 
 ### ContentProvider 的生命周期？
 
@@ -472,23 +222,11 @@ private void attachInfo(Context context, ProviderInfo info, boolean testing)
 
 该函数在 `Application.onCreate()` 函数之前执行
 
-### 运行在主线程的 ContentProvider 为什么不会影响主线程的 UI 操作？
-
-ContentProvider 的 `onCreate()` 是运行在 `UI` 线程的
-
-而 `query()` ，`insert()` ，`delete()` ，`update()` 是运行在线程池中的工作线程的
-
-所以调用这向个方法并不会阻塞 `ContentProvider` 所在进程的主线程，但可能会阻塞调用者所在的进程的 `UI` 线程！
-
-所以，调用 `ContentProvider` 的操作仍然要放在子线程中去做。
-
-虽然直接的 `CRUD` 的操作是在工作线程的，但系统会让你的调用线程等待这个异步的操作完成，你才可以继续线程之前的工作。
-
 ### ContentProvider 的设计模式？
 
 ContentProvider 典型实现了提供者模式
 
-对于访问方而言，无需知道数据存储的方式是什么 (如 SQLite、文件、xml 等)
+对于访问方而言，无需知道知道访问数据的具体细节 (如 SQLite、文件、xml、网络 等)
 
 ContentProvider 会自动根据访问方输入的 Uri 进行匹配 (UriMatcher)，返回对应的数据
 
@@ -508,11 +246,27 @@ ContentProvider 会自动根据访问方输入的 Uri 进行匹配 (UriMatcher)�
 
 ### ContentProvider 与 SQLite 的区别？
 
+* SQLite 是一个轻量级的关系型数据库
 
+  SQLite 被嵌入在每一台 Android 系统的设备中，无需用户自行安装
 
-### ContentProvider 是如何保证操作数据库原子性的？
+  我们只需要定义相应的 SQL 语句交给系统执行，Android 系统会自动帮助我们维护 SQLite
 
+  也可以通过调用 SQLiteQueryBuilder 等帮助类中定义的函数，由系统根据传入的参数自行构建 SQL 语句并执行
 
+* ContentProvider 是一个 Android 系统提供的统一数据访问接口 (可以供用户自定义)
+
+  通过 ContentProvider，访问方不需要知道访问数据的具体细节 (如 SQLite、文件、xml、网络 等)
+
+  ContentProvider 会自动根据访问方输入的 Uri 进行匹配 (UriMatcher)，返回对应的数据
+
+### ContentProvider 保证线程安全吗？如果不保证应该如何做？
+
+ContentProvider 不保证线程安全
+
+如果不做任何处理，当出现多个线程并发通过 ContentProvider 访问同一数据源时，就会导致线程安全问题 (例如并发写入 SQLite 的同一张数据库表)
+
+最简单的解决办法就是在 ContentProvider 中每个访问数据的函数前加上 synchoronized 关键字
 
 ### ContentProvider 如何实现 IPC 通信？
 
@@ -1069,7 +823,7 @@ public class MyProvider extends ContentProvider
     
     static {
         // 注册Uri，匹配码为MATCH_STUDENT
-        mUriMatcher.addURI(AUTHORITY, "sudent", MATCH_STUDENT);
+        mUriMatcher.addURI(AUTHORITY, "student", MATCH_STUDENT);
     }
 
     @Nullable
@@ -2659,11 +2413,11 @@ OkHttp 中有五大默认拦截器：
 
 ### 在开发中如何定位应用的卡顿问题？
 
-大多数用户感知到的卡顿等性能问题的最主要根源都是因为**渲染卡顿**。
+大多数用户感知到的卡顿等性能问题的最主要根源都是因为 **渲染卡顿**
 
-Android 系统每隔大概 16.6 ms 发出 VSYNC（垂直同步）信号，触发对于 UI 的渲染，如果每次渲染都成功，这样就能够达到流畅画面所需要的 60 fps。
+Android 系统每隔大概 16.6 ms 发出 VSYNC（垂直同步）信号，触发对于 UI 的渲染，如果每次渲染都成功，这样就能够达到流畅画面所需要的 60 fps
 
-一旦程序的每帧运行时间超出了 16 ms，也就是帧率低于 60 fps，我们称之为丢帧现象。出现丢帧现象，就会造成肉眼可见的卡顿。
+一旦程序的每帧运行时间超出了 16 ms，也就是帧率低于 60 fps，我们称之为丢帧现象。出现丢帧现象，就会造成肉眼可见的卡顿
 
 #### Systrace
 
@@ -2671,9 +2425,9 @@ Android 系统每隔大概 16.6 ms 发出 VSYNC（垂直同步）信号，触发
 
 [Systrace工具使用](https://www.jianshu.com/p/e73768e66b8d)
 
-Systrace 是 Android 平台提供的一款工具，用于记录短期内的设备活动情况。该工具会生成一份报告，其中汇总了 Android 内核中的数据，例如 CPU 调度程序、磁盘活动和应用线程等占用情况。
+Systrace 是 Android 平台提供的一款工具，用于记录短期内的设备活动情况。该工具会生成一份报告，其中汇总了 Android 内核中的数据，例如 CPU 调度程序、磁盘活动和应用线程等占用情况
 
-Systrace 对于应用开发者来说，能看的并不多。主要用于看是否丢帧，以及丢帧时系统以及我们应用大致的一个状态。
+Systrace 对于应用开发者来说，能看的并不多。主要用于看是否丢帧，以及丢帧时系统以及我们应用大致的一个状态
 
 执行 Systrace 可以选择配置自己感兴趣的 category，常用的有：
 
@@ -2697,25 +2451,25 @@ python systrace.py -t 5 -o \路径\a.html gfx input view am dalvik sched wm disk
 
 -o：报告的输出路径
 
-**我们在使用 Systrace 获取报告时，切记不要抓取太长时间，也不要进行太多复杂的操作。**
+**我们在使用 Systrace 获取报告时，切记不要抓取太长时间，也不要进行太多复杂的操作**
 
-在生成的 html 文件中，我们需要关注 Frames 这一栏的内容。
+在生成的 html 文件中，我们需要关注 Frames 这一栏的内容
 
-在 Frames 这一栏中，将每一帧的运行情况使用颜色来进行标识，绿色表示该帧运行正常，黄色表示该帧运行稍卡顿，红色表示该帧运行卡顿严重。
+在 Frames 这一栏中，将每一帧的运行情况使用颜色来进行标识，绿色表示该帧运行正常，黄色表示该帧运行稍卡顿，红色表示该帧运行卡顿严重
 
-如果只是单独存在一个红色或者黄色的都是没关系的。关键是连续的红 / 黄色或者两帧间隔非常大那就需要我们去仔细观察。
+如果只是单独存在一个红色或者黄色的都是没关系的。关键是连续的红 / 黄色或者两帧间隔非常大那就需要我们去仔细观察
 
-在 UIThread（主线程）上面有一条很细的线，表示线程状态。
+在 UIThread（主线程）上面有一条很细的线，表示线程状态
 
-Systrace 会用不同的颜色来标识不同的线程状态，在每个函数上面都会有对应的线程状态来标识目前线程所处的状态。
+Systrace 会用不同的颜色来标识不同的线程状态，在每个函数上面都会有对应的线程状态来标识目前线程所处的状态
 
-通过查看线程状态我们可以知道目前的瓶颈是什么，是 CPU 执行慢还是因为 Binder 调用，又或是进行 IO 操作，又或是拿不到 CPU 时间片。
+通过查看线程状态我们可以知道目前的瓶颈是什么，是 CPU 执行慢还是因为 Binder 调用，又或是进行 IO 操作，又或是拿不到 CPU 时间片
 
 线程状态主要有以下几种：
 
 * 绿色：表示正在运行
-  * 需要考虑是否频率不够？（CPU处理速度）
-  * 需要考虑是否运行在小核上？（通常来说不可控，但其实很多手机都会有游戏模式，如果我们的应用是手游，那系统会优先把手游中的任务放到大核上运行）
+  * 需要考虑是否频率不够？(CPU处理速度)
+  * 需要考虑是否运行在小核上？(通常来说不可控，但其实很多手机都会有游戏模式，如果我们的应用是手游，那系统会优先把手游中的任务放到大核上运行)
 * 蓝色：表示可以运行，但是 CPU 在执行其他线程
   * 需要考虑是否后台有太多的任务要运行？Runnable 状态的线程状态持续时间越长，则表示 cpu 的调度越忙，没有及时处理到这个任务
   * 需要考虑没有及时处理是因为频率太低？
@@ -2734,17 +2488,17 @@ Systrace 会用不同的颜色来标识不同的线程状态，在每个函数�
 * 利用 UI 线程的 Looper 打印的日志匹配
 * 设置 Choreographer.FrameCallback
 
-第一种方式比较适合在发布前进行测试或者小范围灰度测试然后定位问题；
+第一种方式比较适合在发布前进行测试或者小范围灰度测试然后定位问题
 
-第二种方式比较适合监控线上环境的 app 的掉帧情况来计算 app 在某些场景的流畅度然后有针对性的做性能优化。 
+第二种方式比较适合监控线上环境的 app 的掉帧情况来计算 app 在某些场景的流畅度然后有针对性的做性能优化
 
-#### 利用 UI 线程的 Looper 打印的日志匹配（BlockCanary）
+#### 利用 UI 线程的 Looper 打印的日志匹配 (BlockCanary)
 
-更新 UI 本质上还是通过 UI 线程中的 Looper 进行驱动的。如果在 handler 的 `dispatchMesaage` 函数里有耗时操作，就会发生卡顿。
+更新 UI 本质上还是通过 UI 线程中的 Looper 进行驱动的，如果在 handler 的 `dispatchMesaage` 函数里有耗时操作，就会发生卡顿
 
-只要检测 `msg.target.dispatchMessage(msg)` 的执行时间，就能检测到部分 UI 线程是否有耗时的操作。
+只要检测 `msg.target.dispatchMessage(msg)` 的执行时间，就能检测到部分 UI 线程是否有耗时的操作
 
-在 `Looper#loop` 函数中，有一个日志系统。
+在 `Looper.loop()` 函数中，有一个日志系统
 
 ```java
 // Looper.java
@@ -2772,21 +2526,21 @@ public static void loop()
 }
 ```
 
-注意到 `msg.target.dispatchMessage(msg)` 这行代码的执行前后，先后执行了两次 `Printer#println` 函数。
+注意到 `msg.target.dispatchMessage(msg)` 这行代码的执行前后，先后执行了两次 `Printer.println()` 函数
 
-因此我们可以通过在 `Printer#println` 函数中获取系统时间来计算时间差值，来得到 `msg.target.dispatchMessage(msg)` 的执行时间，从而设置阈值判断是否发生了卡顿。
+因此我们可以通过在 `Printer.println()` 函数中获取系统时间来计算时间差值，来得到 `msg.target.dispatchMessage(msg)` 的执行时间，从而设置阈值判断是否发生了卡顿
 
-Looper 提供了 `setMessageLogging(@Nullable Printer printer)` 函数来让我们设置自定义的 Printer。
+Looper 提供了 `setMessageLogging(Printer printer)` 函数来让我们设置自定义的 Printer
 
-这也是 [BlockCanary](https://github.com/markzhai/AndroidPerformanceMonitor) 的核心原理。
+这也是 [BlockCanary](https://github.com/markzhai/AndroidPerformanceMonitor) 的核心原理
 
 #### 设置 Choreographer.FrameCallback
 
-Android 系统每隔 16ms 发出 VSYNC 信号，来通知界面进行重绘、渲染，每一次同步的周期约为 16.6 ms，代表一帧的刷新频率。
+Android 系统每隔 16ms 发出 VSYNC 信号，来通知界面进行重绘、渲染，每一次同步的周期约为 16.6 ms，代表一帧的刷新频率
 
-通过 Choreographer 类设置它的 `FrameCallback` 函数，当每一帧被渲染时会触发回调 `FrameCallback.doFrame(long frameTimeNanos)` 函数。
+通过 Choreographer 类设置它的 `FrameCallback()` 函数，当每一帧被渲染时会触发回调 `FrameCallback.doFrame(long frameTimeNanos)` 函数
 
-frameTimeNanos 是底层 VSYNC 信号到达的时间戳。
+frameTimeNanos 是底层 VSYNC 信号到达的时间戳
 
 ```java
 public class ChoreographerHelper
@@ -2821,7 +2575,7 @@ public class ChoreographerHelper
 }
 ```
 
-通过 ChoreographerHelper 可以实时计算帧率和掉帧数，实时监测 App 页面的帧率数据，发现帧率过低，还可以自动保存现场堆栈信息。
+通过 ChoreographerHelper 可以实时计算帧率和掉帧数，实时监测 App 页面的帧率数据，发现帧率过低，还可以自动保存现场堆栈信息
 
 ### 如何解决卡顿问题？
 
@@ -2833,47 +2587,47 @@ public class ChoreographerHelper
 
 #### 布局层级优化
 
-measure、layout、draw 这三个过程需要自顶向下地遍历 ViewTree，如果视图层级太深自然需要更多的时间来完成整个绘测过程，从而造成启动速度慢、卡顿等问题。
+measure、layout、draw 这三个过程需要自顶向下地遍历 ViewTree，如果视图层级太深自然需要更多的时间来完成整个绘测过程，从而造成启动速度慢、卡顿等问题
 
 ##### Layout Inspector
 
-我们可以使用 Layout Inspector 这个工具来帮助我们检查应用运行时的视图层次结构。
+我们可以使用 Layout Inspector 这个工具来帮助我们检查应用运行时的视图层次结构
 
 ![](https://note.youdao.com/yws/api/personal/file/1FDC61FFDA9E46D0BD2636DE79D68C34?method=download&shareKey=72e696b8529853cd7652089777c8ff6d)
 
-我们应该尽量减少其层级，可以使用 ConstraintLayout 来使得布局尽量扁平化，移除非必需的UI组件。
+我们应该尽量减少其层级，可以使用 ConstraintLayout 来使得布局尽量扁平化，移除非必需的UI组件
 
 ##### 使用 merge / include 标签
 
-当我们有一些布局元素需要被多处使用时，这时候我们会考虑将其抽取成一个单独的布局文件。在需要使用的地方通过 include 加载。
+当我们有一些布局元素需要被多处使用时，这时候我们会考虑将其抽取成一个单独的布局文件。在需要使用的地方通过 include 加载
 
-也可以使用 merge 标签将一些控件直接添加到布局中。
+也可以使用 merge 标签将一些控件直接添加到布局中
 
 ##### 使用 ViewStub 标签
 
-当我们布局中存在一个 View / ViewGroup，在某个特定时刻才需要他的展示时，我们通常的做法是把这个元素在 xml 中定义为 invisible / gone，在需要显示时再设置为 visible 可见。
+当我们布局中存在一个 View / ViewGroup，在某个特定时刻才需要他的展示时，我们通常的做法是把这个元素在 xml 中定义为 invisible / gone，在需要显示时再设置为 visible 可见
 
-但如果只是将这个元素定义为 invisible / gone，在加载布局时，它仍然会被初始化，占用资源。
+但如果只是将这个元素定义为 invisible / gone，在加载布局时，它仍然会被初始化，占用资源
 
-ViewStub 是一个轻量级的 view，它不可见，不用占用资源，只有设置 ViewStub 为 visible 或调用其 `inflater` 方法时，其对应的布局文件才会被初始化。
+ViewStub 是一个轻量级的 view，它不可见，不用占用资源，只有设置 ViewStub 为 visible 或调用其 `inflater()` 函数时，其对应的布局文件才会被初始化
 
-因此我们可以通过使用 ViewStub 标签来包裹此类 View / ViewGroup，避免此类 View / ViewGroup 不显示却又需要加载，造成资源的浪费。
+因此我们可以通过使用 ViewStub 标签来包裹此类 View / ViewGroup，避免此类 View / ViewGroup 不显示却又需要加载，造成资源的浪费
 
 #### [减少过度渲染](https://developer.android.google.cn/topic/performance/rendering/overdraw?hl=zh_cn)
 
-过度绘制是指系统在渲染单个帧的过程中多次在屏幕上绘制某一个像素。
+过度绘制是指系统在渲染单个帧的过程中多次在屏幕上绘制某一个像素
 
-例如，如果我们有若干界面卡片堆叠在一起，每张卡片都会遮盖其下面一张卡片的部分内容。但是，系统仍需要绘制其中被遮盖的部分。
+例如，如果我们有若干界面卡片堆叠在一起，每张卡片都会遮盖其下面一张卡片的部分内容。但是，系统仍需要绘制其中被遮盖的部分
 
 ##### 检查过度渲染
 
-手机开发者选项中能够显示过度渲染检查功能，通过对界面进行彩色编码来帮我们识别过度绘制。
+手机开发者选项中能够显示过度渲染检查功能，通过对界面进行彩色编码来帮我们识别过度绘制
 
 开启步骤如下：
 
-1. 进入手机的**开发者选项（Developer Options）**
-2. 找到**调试 GPU 过度绘制（Debug GPU overdraw）**
-3. 在弹出的对话框中，选择**显示过度绘制区域（Show overdraw areas）**
+1. 进入手机的 **开发者选项 (Developer Options)**
+2. 找到 **调试 GPU 过度绘制 (Debug GPU overdraw)**
+3. 在弹出的对话框中，选择 **显示过度绘制区域 (Show overdraw areas)**
 
 Android 将按如下方式为界面元素着色，以确定过度绘制的次数：
 
@@ -2883,30 +2637,55 @@ Android 将按如下方式为界面元素着色，以确定过度绘制的次数
 - ![img](https://developer.android.google.cn/topic/performance/images/gpu/overdraw-pink.png?hl=zh_cn) **粉色**：过度绘制 3 次
 - ![img](https://developer.android.google.cn/topic/performance/images/gpu/overdraw-red.png?hl=zh_cn) **红色**：过度绘制 4 次或更多次
 
-> 需要注意，这些颜色是半透明的，因此您在屏幕上看到的确切颜色取决于界面内容。 
+> 需要注意，这些颜色是半透明的，因此您在屏幕上看到的确切颜色取决于界面内容
 >
-> 有些过度绘制是不可避免的。因此在优化应用的界面时，应尽可能尝试达到大部分显示真彩色或仅有 1 次过度绘制（蓝色）的视觉效果。
+> 有些过度绘制是不可避免的
+>
+> 因此在优化应用的界面时，应尽可能尝试达到大部分显示真彩色或仅有 1 次过度绘制（蓝色）的视觉效果
 
 ##### 解决过度渲染
 
 我们可以采取以下几种策略来减少甚至消除过度绘制：
 
 - 移除布局中不需要的背景
-  - 默认情况下，布局没有背景，这表示布局本身不会直接渲染任何内容。但是，当布局具有背景时，其有可能会导致过度绘制。移除不必要的背景可以快速提高渲染性能。不必要的背景可能永远不可见，因为它会被应用在该视图上绘制的任何其他内容完全覆盖。例如，当系统在父视图上绘制子视图时，可能会完全覆盖父视图的背景。 
+  
+  - 默认情况下，布局没有背景，这表示布局本身不会直接渲染任何内容
+  
+    但是，当布局具有背景时，其有可能会导致过度绘制
+  
+    移除不必要的背景可以快速提高渲染性能
+  
+    不必要的背景可能永远不可见，因为它会被应用在该视图上绘制的任何其他内容完全覆盖
+  
+    例如，当系统在父视图上绘制子视图时，可能会完全覆盖父视图的背景
 - 使视图层次结构扁平化
-  - 可以通过优化视图层次结构来减少重叠界面对象的数量，从而提高性能。
+  
+  - 可以通过优化视图层次结构来减少重叠界面对象的数量，从而提高性能
 - 降低透明度
-  - 对于不透明的 view ，只需要渲染一次即可把它显示出来。但是如果这个 view 设置了 alpha 值，则至少需要渲染两次。这是因为使用了 alpha 的 view 需要先知道混合 view 的下一层元素是什么，然后再结合上层的 view 进行 Blend 混色处理。透明动画、淡入淡出和阴影等效果都涉及到某种透明度，这就会造成了过度绘制。可以通过减少要渲染的透明对象的数量，来改善这些情况下的过度绘制。例如，如需获得灰色文本，可以在 TextView 中绘制黑色文本，再为其设置半透明的透明度值。但是，简单地通过用灰色绘制文本也能获得同样的效果，而且能够大幅提升性能。
+  
+  - 对于不透明的 view ，只需要渲染一次即可把它显示出来
+  
+    但是如果这个 view 设置了 alpha 值，则至少需要渲染两次
+  
+    这是因为使用了 alpha 的 view 需要先知道混合 view 的下一层元素是什么，然后再结合上层的 view 进行 Blend 混色处理
+  
+    透明动画、淡入淡出和阴影等效果都涉及到某种透明度，这就会造成了过度绘制
+  
+    可以通过减少要渲染的透明对象的数量，来改善这些情况下的过度绘制
+  
+    例如，如需获得灰色文本，可以在 TextView 中绘制黑色文本，再为其设置半透明的透明度值
+  
+    但是，简单地通过用灰色绘制文本也能获得同样的效果，而且能够大幅提升性能
 
 #### 布局加载优化（异步加载）
 
-LayoutInflater 加载 xml 布局的过程会在主线程使用 IO 读取 XML 布局文件进行 XML 解析，再根据解析结果利用反射创建布局中的控件对象。这个过程随着布局的复杂度上升，耗时自然也会随之增大。
+LayoutInflater 加载 xml 布局的过程会在主线程使用 IO 读取 XML 布局文件进行 XML 解析，再根据解析结果利用反射创建布局中的控件对象。这个过程随着布局的复杂度上升，耗时自然也会随之增大
 
 因此对于布局加载，我们是否可以将其异步执行呢？
 
 ##### [AsyncLayoutInflater](https://developer.android.google.cn/jetpack/androidx/releases/asynclayoutinflater?hl=zh_cn)
 
-Android 为我们提供了 Asynclayoutinflater 把耗时的加载操作在异步线程中完成，最后把加载结果再回调给主线程。
+Android 为我们提供了 Asynclayoutinflater 把耗时的加载操作在异步线程中完成，最后把加载结果再回调给主线程
 
 ```java
 dependencies { 
@@ -2941,17 +2720,21 @@ new AsyncLayoutInflater(this)
 
 ### 如何实现 Crash 的监控？
 
-Crash（应用崩溃）是由于代码异常而导致 App 非正常退出，导致应用程序无法继续使用，所有工作都停止的现象。
+Cras (应用崩溃) 是由于代码异常而导致 App 非正常退出，导致应用程序无法继续使用，所有工作都停止的现象
 
-发生 Crash 后需要重新启动应用（有些情况会自动重启），而且不管应用在开发阶段做得多么优秀，也无法避免 Crash 发生，特别是在 Android 系统中，系统碎片化严重、各 ROM 之间的差异，甚至系统Bug，都可能会导致 Crash 的发生。
+发生 Crash 后需要重新启动应用 (有些情况会自动重启)，而且不管应用在开发阶段做得多么优秀，也无法避免 Crash 发生，特别是在 Android 系统中，系统碎片化严重、各 ROM 之间的差异，甚至系统 Bug，都可能会导致 Crash 的发生
 
-在 Android 应用中发生的 Crash 有两种类型，Java 层 Crash 和 Native 层 Crash。这两种 Crash 的监控和获取堆栈信息有所不同。
+在 Android 应用中发生的 Crash 有两种类型，Java 层 Crash 和 Native 层 Crash
+
+这两种 Crash 的监控和获取堆栈信息有所不同
 
 #### Java 层 Crash
 
-Java 层 Crash 监控非常简单，Java 中的 Thread 定义了一个接口 —— UncaughtExceptionHandler，用于处理未捕获的异常导致线程的终止（**注意：已经被 catch 了的是捕获不到的**）
+Java 层 Crash 监控非常简单，Java 中的 Thread 定义了一个接口 —— UncaughtExceptionHandler，用于处理未捕获的异常导致线程的终止
 
-当我们的应用发生 crash 的时候，就会走 `UncaughtExceptionHandler#uncaughtException` 函数，在该函数中可以获取到异常的信息，我们通过 `Thread#setDefaultUncaughtExceptionHandler` 该函数来设置线程默认的异常处理器，我们可以将异常信息保存到本地或者是上传到服务器，方便我们快速的定位问题。
+**注意：已经被 catch 了的是捕获不到的**
+
+当我们的应用发生 crash 的时候，就会走 `UncaughtExceptionHandler.uncaughtException()` 函数，在该函数中可以获取到异常的信息，我们通过 `Thread.setDefaultUncaughtExceptionHandler()` 该函数来设置线程默认的异常处理器，我们可以将异常信息保存到本地或者是上传到服务器，方便我们快速的定位问题
 
 ```java
 public class CrashHandler implements Thread.UncaughtExceptionHandler
@@ -3063,21 +2846,21 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler
 
 #### Native 层 Crash
 
-实现 Native 层 Crash 的监控，我们需要借助 Linux 系统中的信号机制。
+实现 Native 层 Crash 的监控，我们需要借助 Linux 系统中的信号机制
 
-信号机制是 Linux 进程间通信的一种重要方式，Linux 信号一方面用于正常的进程间通信和同步，另一方面它还负责监控系统异常及中断。
+信号机制是 Linux 进程间通信的一种重要方式，Linux 信号一方面用于正常的进程间通信和同步，另一方面它还负责监控系统异常及中断
 
 当应用程序运行异常时，Linux 内核将产生错误信号并通知当前进程。当前进程在接收到该错误信号后，可以有三种不同的处理方式：
 
 * 忽略该信号
 
-* 捕捉该信号并执行对应的信号处理函数（信号处理程序）
+* 捕捉该信号并执行对应的信号处理函数 (信号处理程序)
 
-* 执行该信号的缺省操作（如终止进程）
+* 执行该信号的缺省操作 (如终止进程)
 
-当 Linux 应用程序在执行时发生严重错误，一般会导致程序崩溃。其中，Linux 专门提供了一类 Crash 信 
+当 Linux 应用程序在执行时发生严重错误，一般会导致程序崩溃
 
-号，在程序接收到此类信号时，缺省操作是将崩溃的现场信息记录到核心文件（墓碑），然后终止进程。
+其中，Linux 专门提供了一类 Crash 信号，在程序接收到此类信号时，缺省操作是将崩溃的现场信息记录到核心文件 (墓碑)，然后终止进程
 
 常见崩溃信号列表：
 
@@ -3091,19 +2874,19 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler
 | SIGXCPU | 超过 CPU 时间限制              |
 | SIGXFSZ | 文件大小限制                   |
 
-一般的，如果出现崩溃信号，Android 系统默认缺省操作是直接退出我们的程序。
+一般的，如果出现崩溃信号，Android 系统默认缺省操作是直接退出我们的程序
 
-但是系统允许我们给某一个进程的某一个特定信号注册一个相应的处理函数（**signal**），即对该信号的默认处理动作进行修改。
+但是系统允许我们给某一个进程的某一个特定信号注册一个相应的处理函数 (signal)，即对该信号的默认处理动作进行修改
 
-因此 Native 层 Crash 的监控可以采用这种信号机制，捕获崩溃信号执行我们自己的信号处理函数从而捕获 Native 层 Crash。
+因此 Native 层 Crash 的监控可以采用这种信号机制，捕获崩溃信号执行我们自己的信号处理函数从而捕获 Native 层 Crash
 
-这也是 BreakPad 实现监控 Native 层 Crash 的核心原理。
+这也是 BreakPad 实现监控 Native 层 Crash 的核心原理
 
 ##### [BreakPad](https://github.com/google/breakpad)
 
-Google BreakPad 是一个跨平台的崩溃转储和分析框架和工具集合，BreakPad 在 Linux 中的实现就是借助了 Linux 信号捕获机制实现的。
+Google BreakPad 是一个跨平台的崩溃转储和分析框架和工具集合，BreakPad 在 Linux 中的实现就是借助了 Linux 信号捕获机制实现的
 
-因为其实现为 C++，因此在 Android 中使用时，必须借助 NDK 工具。
+因为其实现为 C++，因此在 Android 中使用时，必须借助 NDK 工具
 
 ###### 引入 BreakPad
 
@@ -3170,7 +2953,7 @@ LOCAL_EXPORT_C_INCLUDES := $(LOCAL_C_INCLUDES)
 # 使用 android ndk 中的日志库
 log LOCAL_EXPORT_LDLIBS := -llog 
 
-# 编译 static 静态库 -》 类似 java 的 jar 包
+# 编译 static 静态库 -> 类似 java 的 jar 包
 include $(BUILD_STATIC_LIBRARY)
 ```
 
@@ -3183,13 +2966,13 @@ include $(BUILD_STATIC_LIBRARY)
 ```cmake
 cmake_minimum_required(VERSION 3.4.1)
 
-#对应 android.mk 中的 LOCAL_C_INCLUDES
+# 对应 android.mk 中的 LOCAL_C_INCLUDES
 include_directories(src src/common/android/include)
 
-#开启 arm 汇编支持，因为在源码中有 .S 文件（汇编源码）
+# 开启 arm 汇编支持，因为在源码中有 .S 文件（汇编源码）
 enable_language(ASM)
 
-#生成 libbreakpad.a 并指定源码，对应 android.mk 中的 LOCAL_SRC_FILES + LOCAL_MODULE
+# 生成 libbreakpad.a 并指定源码，对应 android.mk 中的 LOCAL_SRC_FILES + LOCAL_MODULE
 add_library(breakpad STATIC 
 	src/client/linux/crash_generation/crash_generation_client.cc 
 	src/client/linux/dump_writer_common/thread_info.cc 
@@ -3207,7 +2990,7 @@ add_library(breakpad STATIC
 	src/common/linux/guid_creator.cc src/common/linux/linux_libc_support.cc 
 	src/common/linux/memory_mapped_file.cc src/common/linux/safe_readlink.cc)
 
-#链接 log 库，对应 android.mk 中 LOCAL_EXPORT_LDLIBS
+# 链接 log 库，对应 android.mk 中 LOCAL_EXPORT_LDLIBS
 target_link_libraries(breakpad log)
 ```
 
@@ -3233,7 +3016,7 @@ target_link_libraries(
 
 此时执行编译，会在 #include "third_party/lss/linux_syscall_support.h" 报错，无法找到头文件
 
-此文件从：https://chromium.googlesource.com/external/linux-syscall-support/+/refs/heads/master 下载（需要翻墙）
+此文件从：https://chromium.googlesource.com/external/linux-syscall-support/+/refs/heads/master 下载 (需要翻墙)
 
 下载好后放到工程中对应目录下，重新编译运行即可
 
@@ -3344,7 +3127,7 @@ Thread 1
 
 接下来需要使用 Android NDK 里面提供的 addr2line 工具将寄存器地址转换为对应符号
 
-addr2line 要使用对应 ABI 匹配的版本，同时进行分析的 so 文件需要带有符号信息（一般在 `[项目根目录]\app\build\intermediates\cmake\debug\obj\` 目录下就可以找到有符号信息的 so 文件）
+addr2line 要使用对应 ABI 匹配的版本，同时进行分析的 so 文件需要带有符号信息 (一般在 `[项目根目录]\app\build\intermediates\cmake\debug\obj\` 目录下就可以找到有符号信息的 so 文件)
 
 最后我们就可以出错的寄存器地址转换成具体的程序行号了
 
@@ -3388,7 +3171,7 @@ i686-linux-android-addr2line.exe -f -C -e libbugly.so 0x1feab
 
   解决方案： 
 
-  * 使用一个静态 Handler 内部类，然后对 Handler 持有的对象（一般是 Activity）使用弱引用，这样在回收时，Handler 持有的对象也可以被回收
+  * 使用一个静态 Handler 内部类，然后对 Handler 持有的对象 (一般是 Activity) 使用弱引用，这样在回收时，Handler 持有的对象也可以被回收
 
   * 在 Activity 的 onDestroy 或 onStop 时，应该移除消息队列中的消息，避免 Looper 线程的消息队列中有待处理的消息需要处理
 
@@ -3412,7 +3195,7 @@ i686-linux-android-addr2line.exe -f -C -e libbugly.so 0x1feab
 
 以上这些常见的内存泄漏的 bug，我们可以通过 Android Studio 中自带的代码检查工具找出来
 
-通过点击 Android Studio 中的 Analyze > Inspect Code... 来开启 AS 的代码检查（如图示）
+通过点击 Android Studio 中的 Analyze > Inspect Code... 来开启 AS 的代码检查 (如图示)
 
 ![](https://note.youdao.com/yws/api/personal/file/AB3DC28A01674645BF77187308D386AC?method=download&shareKey=7cf346b4197fe384670accdd9409825d)
 
@@ -3422,12 +3205,12 @@ i686-linux-android-addr2line.exe -f -C -e libbugly.so 0x1feab
 
 目前分析内存泄漏常见的方式有四种：
 
-* Memory Analyzer Tools（MAT）
+* Memory Analyzer Tools (MAT)
 * Android Memory Profiler
 * LeakCanary
-* Koom（快手提出的最新解决方案）
+* Koom (快手提出的最新解决方案)
 
-#### Memory Analyzer Tools（MAT）
+#### Memory Analyzer Tools (MAT)
 
 Android 系统为了方便我们定位内存泄漏，提供了一种捕获当前应用运行时内存状况的方案 —— 堆转储
 
@@ -3437,7 +3220,7 @@ Android 系统为了方便我们定位内存泄漏，提供了一种捕获当前
 
 然而堆转储只存在于应用运行时，当我们退出应用时，会丢失堆转储。因此，我们需要将应用运行时的堆转储导出为 HPROF 文件后，才能使用 MAT 进行分析
 
-Android SDK 为我们提供了一个 API 用于捕获堆转储并导出为 HPROF 文件 —— `android.os.Debug#dumpHprofData(String fileName)`
+Android SDK 为我们提供了一个 API 用于捕获堆转储并导出为 HPROF 文件 —— `android.os.Debug.dumpHprofData(String fileName)`
 
 此时导出的 hprof 文件并不能直接进行分析，还需要将其从 Android 格式转换为 Java SE HPROF 格式 
 
@@ -3465,8 +3248,8 @@ hprof-conv heap-original.hprof heap-converted.hprof
 
 ##### Shallow Heap 和 Retained Heap
 
-* Shallow Heap 指的是对象**本身**所占用的内存大小
-* Retained Heap 指的是当一个对象被回收后**可以被级联回收**的总内存大小
+* Shallow Heap 指的是对象 **本身** 所占用的内存大小
+* Retained Heap 指的是当一个对象被回收后 **可以被级联回收** 的总内存大小
 
 [Eclipse MAT 里面的SHALLOW HEAP和RETAINED HEAP是什么意思？](https://blog.csdn.net/goldenfish1919/article/details/94378369)
 
@@ -3477,7 +3260,7 @@ hprof-conv heap-original.hprof heap-converted.hprof
 
 [JVM 内存分析神器 MAT: Incoming Vs Outgoing References 你真的了解吗？](https://blog.csdn.net/weixin_45410925/article/details/102740403)
 
-我们可以通过右键点击想要查看的对象，选择 List objects > with incoming references / with outgoing references（如图示）
+我们可以通过右键点击想要查看的对象，选择 List objects > with incoming references / with outgoing references (如图示)
 
 ![](https://note.youdao.com/yws/api/personal/file/3A0D3DF9E2AE49B6B50E442F10D3D487?method=download&shareKey=4d222c668dc67c28e37a53365b65dd42)
 
@@ -3521,7 +3304,7 @@ D LeakCanary: LeakCanary is running and ready to detect leaks
 
 #### [Koom](https://github.com/KwaiAppTeam/KOOM/blob/master/README.zh-CN.md)
 
-KOOM（Kwai OOM，Kill OOM）是快手性能优化团队在处理移动端 OOM 问题的过程中沉淀出的一套完整解决方案
+KOOM (Kwai OOM，Kill OOM) 是快手性能优化团队在处理移动端 OOM 问题的过程中沉淀出的一套完整解决方案
 
 ### 内存抖动如何解决？
 
@@ -3594,9 +3377,11 @@ else
 
 总所周知，drawable 目录是放置本地图片资源的地方
 
-在 Android Studio 中将 drawable 目录分为了 mdpi、hdpi、xhdpi 等等不同的等级，对应着不同的设备屏幕分辨率（dpi）
+在 Android Studio 中将 drawable 目录分为了 mdpi、hdpi、xhdpi 等等不同的等级，对应着不同的设备屏幕分辨率 (dpi)
 
-当 drawable 目录下的图片资源被加载时，其实是调用了 `BitmapFactory#decodeResource` 函数将资源 id 转换成了 bitmap。在转换的过程中，会根据图片资源存放的不同 dpi 等级做一次分辨率的转换，转换的规则是：
+当 drawable 目录下的图片资源被加载时，其实是调用了 `BitmapFactory.decodeResource()` 函数将资源 id 转换成了 bitmap
+
+在转换的过程中，会根据图片资源存放的不同 dpi 等级做一次分辨率的转换，转换的规则是：
 
 ```
 新图宽高 = 原图宽高 * (当前设备的dpi / 目录对应的dpi)
@@ -3614,7 +3399,7 @@ else
 
 当容器的宽高都远小于图片的宽高时，需要对图片进行尺寸上的压缩，将图片的分辨率调整为容器宽高的大小，这样一方面不会对图片的质量有影响，同时也可以很大程度上减少内存的占用
 
-Android 开发者官网也给我们提供了尺寸压缩的[实现方案](https://developer.android.google.cn/topic/performance/graphics/load-bitmap?hl=zh_cn)，使用 BitmapFactory.Options 中的 inSampleSize 参数
+Android 开发者官网也给我们提供了尺寸压缩的 [实现方案](https://developer.android.google.cn/topic/performance/graphics/load-bitmap?hl=zh_cn)，使用 BitmapFactory.Options 中的 inSampleSize 参数
 
 ```java
 /**
@@ -3667,7 +3452,7 @@ public static Bitmap decodeSampledBitmapFromResource(Resources res, int resId,
 
 ##### 质量压缩
 
-一般情况下质量压缩是不推荐的一种优化手法，此手法压缩后图片将会失真。但不排除有项目对图片的清晰度没有过高的要求
+一般情况下质量压缩是不推荐的一种优化手法，此手法压缩后图片将会失真，但不排除有项目对图片的清晰度没有过高的要求
 
 直至 API 29，将像素点分为六个等级：
 
@@ -3700,7 +3485,7 @@ options.inPreferredConfig = Bitmap.Config.ARGB_8888;
 
 对于缓存，目前的策略是内存缓存和磁盘缓存
 
-Android 开发者官网也给我们提供了两种缓存的[实现方案](https://developer.android.google.cn/topic/performance/graphics/cache-bitmap?hl=zh_cn)
+Android 开发者官网也给我们提供了两种缓存的 [实现方案](https://developer.android.google.cn/topic/performance/graphics/cache-bitmap?hl=zh_cn)
 
 ##### 总结
 
@@ -3718,7 +3503,7 @@ Android 开发者官网也给我们提供了两种缓存的[实现方案](https:
 
 #### 减少内存泄漏
 
-减少内存泄漏的最主要途径就是[分析 HPROF 文件](#如何分析内存泄漏？)，找到内存泄漏所在位置，进行修改
+减少内存泄漏的最主要途径就是 [分析 HPROF 文件](#如何分析内存泄漏？)，找到内存泄漏所在位置，进行修改
 
 #### 解决内存抖动
 
@@ -3758,7 +3543,7 @@ Android 开发者官网也给我们提供了两种缓存的[实现方案](https:
 > adb logcat -v long -d > log.txt
 ```
 
-关于 Android 日志系统 —— [骇极干货｜第2期：Android日志系统分析](https://www.sohu.com/a/365755232_675300)（大致了解就可以了）
+关于 Android 日志系统 —— [骇极干货｜第2期：Android日志系统分析](https://www.sohu.com/a/365755232_675300) (大致了解就可以了)
 
 关于 logcat 命令的使用 —— [adb logcat命令行用法](https://blog.csdn.net/u011793251/article/details/51741048)
 
@@ -3778,11 +3563,11 @@ Reason: Input dispatching timed out (Waiting to send non-key event because the t
 * ANR 发生时间：07-20 15:36:36.472
 * 进程pid：996
 * 进程名：com.chenjimou.anrtestdemo
-* ANR 类型：KeyDispatchTimeout（Input dispatching timed out）
+* ANR 类型：KeyDispatchTimeout (Input dispatching timed out)
 
 现在我们知道了当前 ANR 的类型是 KeyDispatchTimeout，我们可以通过关键字 `PID: 996` 向上进行搜索，查看该进程在前 5s 的时间内做了什么事情
 
-或者通过关键字 `CPU usage` 向下进行搜索，查看各个进程占用 cpu 的情况（不一定会有）
+或者通过关键字 `CPU usage` 向下进行搜索，查看各个进程占用 cpu 的情况 (不一定会有)
 
 但是仅仅通过日志信息，我们只能知道 ANR 的类型以及发生 ANR 时系统的一些状态信息，这些是不足以定位到具体的错误位置的，因此我们还需要对 traces.txt 文件进行分析
 
