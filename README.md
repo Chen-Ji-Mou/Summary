@@ -2238,7 +2238,13 @@ final void attach(Context context,
 
 ### LiveData 的 onChanged 回调时机？
 
-LiveData 相当于是一个容器，当 LiveData 中的数据发生变化时，就会通知观察者 (Activity / Fragment)，回调 onChanged
+当 LiveData 被设置观察者 (observe) 时，会立即检查 LiveData 中的数据是否发生过变化 (给 LiveData 设置了数据也算发生变化)
+
+如果 LiveData 中的数据发生过变化，就会通知观察者 (Activity / Fragment)，回调 onChanged
+
+之后 LiveData 中的数据一发生变化，就会通知观察者 (Activity / Fragment)，回调 onChanged
+
+[Jetpack—LiveData组件的缺陷以及应对策略](https://juejin.cn/post/7054363342080573471)
 
 ### Room 使用的基本流程了解吗？
 
