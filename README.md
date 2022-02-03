@@ -128,15 +128,67 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
 ### 有序 Broadcast 和无序 Broadcast 的区别？
 
+* 无序 Broadcast 通过 `sendBroadcast()` 函数进行发送，并通过 intent 传递数据
 
+  顾名思义，无序广播的发送顺序是无序的
 
-### Broadcast 和 LocalBroadcast 的区别？
+  无序广播不可以被拦截，不可以被终止，不可以被修改，接收无优先级之分，BroadcastReciver 之间不能通过无序广播传递数据
 
+* 有序 Broadcast 通过 `sendOrderedBroadcast()` 函数进行发送，该函数有几个比较重要的参数：
 
+  * receiverPermission：指定接收权限
+
+    如果设置了 receiverPermission，BroadcastReciver 需要声明该权限才能接收到广播
+
+  * resultReceiver：指定最终的 BroadcastReciver
+
+    通过该参数指定的 BroadcastReciver，无论该有序广播是否被拦截，最终都会接收到该有序广播
+
+  * initialData：指定该有序广播初始携带的字符串数据
+
+    当 BroadcastReciver 接收到有序广播后，可通过 `getResultData()` 函数获取该数据，可通过 `setResultData()` 函数修改该数据
+
+  * initialExtras：指定该有序广播初始携带的 Bundle 数据
+
+    当 BroadcastReciver 接收到有序广播后，可通过 `getResultExtras()` 函数获取该 Bundle 对象，可通过 `setResultExtras()` 函数传入一个修改过的 Bundle 对象
+
+  有序广播的发送顺序由 BroadcastReciver 的 android:priority 属性确定，android:priority 是一个 int 型整数，值越大，其所对应的 BroadcastReciver，越先接收到广播
+
+  android:priority 相同的情况下，如果 BroadcastReciver 是通过静态注册的，则接收到广播的顺序不确定；如果 BroadcastReciver 是动态注册的，则先注册的将先接收到广播
+
+  有序广播可以被拦截，当 BroadcastReciver 接收到有序广播后，可通过 `abortBroadcast()` 函数拦截该有序广播
+
+  如果有序广播被较高优先级的 BroadcastReciver 拦截，则较低优先级的 BroadcastReciver 无法接收到该有序广播，但通过 resultReceiver 参数指定的 BroadcastReciver 仍可以接收到该有序广播
+
+  有序广播也可通过 intent.putExtra 传递数据，但通过 intent.putExtra 传递的数据无法中途被修改
+
+### 全局 Broadcast 和本地 Broadcast 的区别？
+
+* 本地 Broadcast 的发送和接收都在同一 APP 应用中，不影响其他 APP 应用也不受其他 APP 应用影响
+
+  本地广播只能被动态注册的 BroadcastReciver 接收
+
+  主要通过 LocalBroadcastManager 进行使用
+
+* 全局 Broadcast 的发送和接收可以在不同的 APP 应用中
+
+  BroadcastReciver 可以接收其他 APP 应用 / 系统发送的全局广播
+
+  也可以发送全局广播让其他 APP 应用中的 BroadcastReciver 接收
+
+  无论是通过静态注册还是动态注册的 BroadcastReciver 都可以接收全局广播
 
 ### Broadcast 发送和接收过程？
 
+Broadcast 的发送主要由 AMS 管理，AMS 会将所要发送的 Broadcast 信息与所有已注册的 BroadcastReciver 信息 (权限 + IntentFilter) 进行比对，将广播发送给满足条件的 BroadcastReciver
 
+由于 BroadcastReciver 运行在其他进程中，AMS 需要 AIDL 调用 BroadcastReciver 运行所在进程，传递 intent 等信息，并最终调用 BroadcastReceiver 的 `onReceive()` 函数
+
+以无序广播的发送流程为例，总体流程如下图：
+
+![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/618498747a3149869381196be0d093ea~tplv-k3u1fbpfcp-zoom-1.image)
+
+图中默认 BroadcastReciver 是通过动态注册的，因此 BroadcastReciver 运行在 APP 进程中 (动态注册的 BroadcastReciver 都是运行在 APP 进程中)
 
 ### BroadcastReceiver 有哪几种区别？分别在哪个进程中？为什么本地 Receiver 不可以用于线程间通信？onReceiver 在哪个线程中？
 
@@ -144,7 +196,22 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
 ### BroadcastReceiver 没有收到 Broadcast 的原因？超过五秒后收到的原因？
 
+BroadcastReceiver 没有收到 Broadcast 的原因可能有：
 
+* BroadcastReceiver 的 IntentFilter 无法匹配
+* BroadcastReceiver 没有添加对应的权限
+* APP 没有声明对应的权限
+* 如果是没有收到系统的 Broadcast，可能需要在 IntentFilter 中添加设置 (addDataScheme)
+
+BroadcastReceiver 超过五秒后收到 Broadcast 的原因可能有：
+
+* 在 Broadcast 发送流程中，AMS 会通过 Handler (BroadcastHandler) 从 Binder 线程切换到主线程执行
+
+  由于 AMS 运行在 system_server 进程中，此进程中还运行着其他系统服务 (例如 WMS、PMS 等)，就有可能出现 system_server 进程的主线程 Looper 出现阻塞，导致广播发送延迟
+
+* 在 Broadcast 发送流程中，AMS 会通过 AIDL 调用到 BroadcastReceiver 运行所在进程
+
+  当出现手机系统资源紧张时 (例如内存不足)，就有可能导致 AIDL 调用无法执行 (内存不足，无法进行 mmap 内存映射)，导致广播发送延迟
 
 ### EventBus 和 Broadcast 各自的优劣？
 
@@ -152,7 +219,11 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
 ### Broadcast 可以跨进程么？如果可以，是通过什么实现的？
 
+可以，BroadcastReceiver 可以运行在独立的进程中
 
+在 Broadcast 发送流程中，AMS 会通过 AIDL 调用到 BroadcastReceiver 运行所在进程
+
+AIDL 的底层实现原理是 Binder 机制
 
 ## Service
 
@@ -204,13 +275,23 @@ onCreate 函数被阻塞并不在触发 ANR 的场景里面，所以并不会直
 
 当 ContentProvider 运行所在进程与 APP 进程相同时，ContentProvider 会伴随 APP 进程初始化一起启动
 
+APP 进程在初始化时，会创建所有运行在本进程中的 ContentProvider 实例，并回调所有 ContentProvider 实例的 `onCreate()` 函数，完成启动
+
+当所有 ContentProvider 启动完成后，会将这些 ContentProvider 的信息发送给 AMS 进行记录，这样其他进程就可以通过 AMS 来访问这些 ContentProvider 了
+
 总体流程如下图：
 
 ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/f9396e76a1304371bdef078f96adbee4~tplv-k3u1fbpfcp-zoom-1.image)
 
-当 ContentProvider 运行所在进程与 APP 进程相同时，ContentProvider 不会在 APP 进程初始化时启动
+当 ContentProvider 运行所在进程与 APP 进程不同时，ContentProvider 不会在 APP 进程初始化时被启动
 
-当 APP 进程通过 `getContentResolver()` 函数访问 ContentProvider 时，才会触发 ContentProvider 的启动
+当 APP 进程通过 `getContentResolver()` 函数访问 ContentProvider 时，会访问 AMS 尝试获取目标 ContentProvider 的 Binder 通信接口
+
+如果 AMS 中保存有该 ContentProvider 的 Binder 通信接口就直接返回给 APP 进程
+
+如果 AMS 中没有保存有该 ContentProvider 的 Binder 通信接口，说明该 ContentProvider 还未启动，新建进程启动目标 ContentProvider，最终回调目标 ContentProvider 实例的 `onCreate()` 函数，完成启动
+
+当目标 ContentProvider 启动完成后，再将目标 ContentProvider 的信息发送给 AMS 进行记录
 
 总体流程如下图：
 
@@ -301,6 +382,26 @@ Handler 内存泄漏原因是由于 **Handler 可以设置延时消息** 和 **M
 我们平时使用的内部类虽然也会持有外部类对象，但是这些内部类的存活是跟着组件的生命周期；当组件生命周期结束后，组件对象和内部类对象会被一起回收，因此不会造成 **内存泄漏**
 
 解决该问题的最有效的方法是：**将 Handler 定义成静态的内部类，在内部持有组件的弱引用**
+
+```java
+public class SafeHandler extends Handler
+{
+    final WeakReference<Context> mContext;
+
+    public SafeHandler(@NonNull Context context, @NonNull Looper looper)
+    {
+        super(looper);
+        mContext = new WeakReference<>(context);
+    }
+
+    @Override
+    public void handleMessage(@NonNull Message msg)
+    {
+        Context thiz = mContext.get();
+        thiz.handleMessage(msg);
+    }
+}
+```
 
 ### 为何主线程可以直接 new Handler？如果想要在子线程中 new Handler 要做些什么准备？
 
