@@ -9,13 +9,13 @@
 
 ###  从桌面点击一个图标之后，到界面显示，这个过程发生了什么？ 
 
-手机桌面其实是一个叫做 Launcher 的 App，当我们点击桌面上的应用图标后，就会调用到 `Launcher#startActivitySafely` 函数去启动目标应用的 LaunchActivity
+手机桌面其实是一个叫做 Launcher 的 App，当我们点击桌面上的应用图标后，就会调用到 `Launcher.startActivitySafely()` 函数去启动目标应用的 LaunchActivity
 
 之后 Launcher 进程就会请求 AMS 去启动目标 Activity， AMS 进程会进行一系列的验证工作，如判断目标 Activity 实例是否已经存在、启动模式是什么、有没有在 AndroidManifest.xml 文件中注册等等
 
 这些工作结束后，AMS会发现此时 App 进程还没有被创建，就会请求 Zygote 进程去创建 App 进程
 
-当 App 进程创建结束后，就会进行初始化，并通知 AMS；AMS 收到来自 App 进程的通知后，就会将创建 Activity 的一系列操作封装成事务（ ClientTransaction ）发送给 App 进程
+当 App 进程创建结束后，就会进行初始化，并通知 AMS；AMS 收到来自 App 进程的通知后，就会将创建 Activity 的一系列操作封装成事务 (ClientTransaction) 发送给 App 进程
 
 App 进程收到来自 AMS 的事务后，根据事务创建目标 Activity，并回调目标 Activity 的生命周期
 
@@ -23,48 +23,48 @@ App 进程收到来自 AMS 的事务后，根据事务创建目标 Activity，�
 
 * 当 B Activity 的 launchMode 为 standard 时，生命周期变化是：
 
-   `A.onPause` --> `B.onCreate` --> `B.onStart` --> `B.onResume` --> `A.onStop`
+   `A.onPause()` --> `B.onCreate()` --> `B.onStart()` --> `B.onResume()` --> `A.onStop()`
 
 * 当 B Activity 的 launchMode 为 singleTop 时
 
   * 如果发生了复用，就说明是 **自己启动自己**，生命周期的变化是：
 
-     `A.onPause` -> `A.onNewIntent` -> `A.onResume`
+     `A.onPause()` -> `A.onNewIntent()` -> `A.onResume()`
 
   * 如果没有发生复用，生命周期的变化是：
 
-     `A.onPause` --> `B.onCreate` --> `B.onStart` --> `B.onResume` --> `A.onStop`
+     `A.onPause()` --> `B.onCreate()` --> `B.onStart()` --> `B.onResume()` --> `A.onStop()`
 
 * 当 B Activity 的 launchMode 为 singleTask / singleInstance 时
 
   * 如果发生了复用，生命周期的变化是：
 
-     `A.onPause` --> `B.onRestart` --> `B.onStart` --> `B.onNewIntent` --> `B.onResume` --> `A.onStop`
+     `A.onPause()` --> `B.onRestart()` --> `B.onStart()` --> `B.onNewIntent()` --> `B.onResume()` --> `A.onStop()`
 
   * 如果没有发生复用，生命周期的变化是：
 
-     `A.onPause` --> `B.onCreate` --> `B.onStart` --> `B.onResume` --> `A.onStop`
+     `A.onPause()` --> `B.onCreate()` --> `B.onStart()` --> `B.onResume()` --> `A.onStop()`
 
 ### 从 B Activity 返回 A Activity 的生命周期变化？
 
-`B.onPause` --> `A.onRestart` --> `A.onStart` --> `A.onResume` --> `B.onStop` --> `B.onDestroy`
+`B.onPause()` --> `A.onRestart()` --> `A.onStart()` --> `A.onResume()` --> `B.onStop()` --> `B.onDestroy()`
 
 ### 能说说 Activity 的四种启动模式吗？常见的应用场景是什么？
 
 常见的启动模式分别是  `android:launchMode`  的四种属性值：
 
-- 标准模式（standard）
-- 栈顶复用模式（singleTop）
-- 全局单例模式（singleTask）
-- 单实例模式（singleInstance）
+- 标准模式 (standard)
+- 栈顶复用模式 (singleTop)
+- 全局单例模式 (singleTask)
+- 单实例模式 (singleInstance)
 
 standard 就是默认模式，每次启动都会将新 Activity 实例添加入当前 Task；
 
-singleTop 是栈顶复用模式，如果当前 Task 的栈顶就是目标 Activity，就复用位于栈顶的实例，回调该实例的 `onNewIntent` 函数；
+singleTop 是栈顶复用模式，如果当前 Task 的栈顶就是目标 Activity，就复用位于栈顶的实例，回调该实例的 `onNewIntent()` 函数；
 
 singleTask 是全局单例模式，如果系统中已经有了目标 Activity 的实例，就会将该实例所在的 Task 设置为前台 Task，并复用该实例，回调该实例的 `onNewIntent` 函数；如果该实例的上方有别的 Activity 实例，就将这些 Activity 实例移除；
 
-singleInstance 是单实例模式，如果系统中已经有了目标 Activity 的实例，就会将该实例所在的 Task 设置为前台 Task，并复用该实例，回调该实例的 `onNewIntent` 函数；同时 Task 内只允许存在目标 Activity 的单一实例
+singleInstance 是单实例模式，如果系统中已经有了目标 Activity 的实例，就会将该实例所在的 Task 设置为前台 Task，并复用该实例，回调该实例的 `onNewIntent()` 函数；同时 Task 内只允许存在目标 Activity 的单一实例
 
 应用场景：
 
@@ -77,25 +77,25 @@ singleInstance 是单实例模式，如果系统中已经有了目标 Activity �
 
 ### 弹出 Dialog 对当前显示的 Activity 的生命周期有什么影响？
 
-会回调当前 Activity 的 `onPause` 函数，并不会回调 `onStop` 函数
+会回调当前 Activity 的 `onPause()` 函数，并不会回调 `onStop()` 函数
 
 因为 `onStop` 函数只有当 Activity **完全不可见** 的时候才会被回调，通常只有当 Activity 被移至后台才会被调用
 
-弹出 Dialog 只是让当前显示的 Activity 失去焦点并没有让其完全不可见，所以不会回调 Activity 的 `onStop` 函数
+弹出 Dialog 只是让当前显示的 Activity 失去焦点并没有让其完全不可见，所以不会回调 Activity 的 `onStop()` 函数
 
 ### onActivityResult 什么时候会被回调？
 
-`onActivityResult` 函数不属于 Activity 的生命周期，所以它会优先于生命周期函数而执行
+`onActivityResult()` 函数不属于 Activity 的生命周期，所以它会优先于生命周期函数而执行
 
 从 B Activity 返回 A Activity，生命周期变化是：
 
-`B.onPause` --> `A.onActivityResult` --> `A.onRestart` --> `A.onStart` --> `A.onResume`
+`B.onPause()` --> `A.onActivityResult()` --> `A.onRestart()` --> `A.onStart()` --> `A.onResume()`
 
 ### onCreate 函数里写死循环会导致 ANR 吗？
 
 ANR 产生的原因：
 
-- KeyDispatchTimeout：输入事件（触摸事件等）在 5s 内没有被处理完成
+- KeyDispatchTimeout：输入事件 (触摸事件等) 在 5s 内没有被处理完成
 - BroadcastTimeout： 
   - 前台 Broadcast：onReceiver 函数在 10s 内没有执行结束
   - 后台 Broadcast：onReceiver 函数在 60s 内没有执行结束
@@ -190,9 +190,13 @@ Broadcast 的发送主要由 AMS 管理，AMS 会将所要发送的 Broadcast �
 
 图中默认 BroadcastReciver 是通过动态注册的，因此 BroadcastReciver 运行在 APP 进程中 (动态注册的 BroadcastReciver 都是运行在 APP 进程中)
 
-### BroadcastReceiver 有哪几种区别？分别在哪个进程中？为什么本地 Receiver 不可以用于线程间通信？onReceiver 在哪个线程中？
+### BroadcastReceiver 有哪几种区别？分别运行在哪个进程中？onReceive 运行在哪个线程中？
 
+BroadcastReceiver 分为静态注册和动态注册
 
+静态注册的 BroadcastReceiver 可以运行在独立的进程中，动态注册的 BroadcastReceiver 只能运行在 APP 进程中
+
+`onReceive()` 函数回调运行在主线程中
 
 ### BroadcastReceiver 没有收到 Broadcast 的原因？超过五秒后收到的原因？
 
@@ -215,7 +219,15 @@ BroadcastReceiver 超过五秒后收到 Broadcast 的原因可能有：
 
 ### EventBus 和 Broadcast 各自的优劣？
 
+|              Broadcast               |                       EventBus                        |
+| :----------------------------------: | :---------------------------------------------------: |
+|    可以在不同进程间发送和接收消息    |            只能在同一进程中发送和接收消息             |
+|             属于异步调用             |      同一线程属于同步调用，不同线程属于异步调用       |
+| 依赖于 Context，使其可以调用系统函数 | 不依赖于 Context，使用时无需关注 Context 的注入与传递 |
 
+由于 Broadcast 机制使用了 Binder 进行跨进程通信，会消耗一定的系统资源，是一个重量级的订阅机制，因此 Broadcast 主要用于监听系统状态变化和 IPC
+
+EventBus 相较于 Broadcast 更轻量，由于 EventBus 不支持多进程，因此 EventBus 主要用于多线程间的交互
 
 ### Broadcast 可以跨进程么？如果可以，是通过什么实现的？
 
@@ -227,7 +239,7 @@ AIDL 的底层实现原理是 Binder 机制
 
 ## Service
 
-### Activity 和 Service 有什么区别（Service 存在的意义是什么）？
+### Activity 和 Service 有什么区别 (Service 存在的意义是什么) ？
 
 
 
@@ -251,7 +263,7 @@ AIDL 的底层实现原理是 Binder 机制
 
 
 
-### Service 和 Thread 都可以用来执行后台任务，为什么选 Serice 而不选 Thread（Service 与 Thread 的区别）？
+### Service 和 Thread 都可以用来执行后台任务，为什么选 Serice 而不选 Thread (Service 与 Thread 的区别) ？
 
 
 
@@ -341,7 +353,7 @@ ContentProvider 会自动根据访问方输入的 Uri 进行匹配 (UriMatcher)�
 
   ContentProvider 会自动根据访问方输入的 Uri 进行匹配 (UriMatcher)，返回对应的数据
 
-### ContentProvider 保证线程安全吗？如果不保证应该如何做？
+### ContentProvider 保证线程安全吗？应该如何做？
 
 ContentProvider 不保证线程安全
 
@@ -369,7 +381,7 @@ Handler 可以创建无数个，Handler 对于用户发送消息操作进行了�
 
 这个字段是 static final 的，所以每个线程只会保存一个looper对象引用
 
-当调用 `Looper#prepare` 函数创建 looper 对象的时候，会先确定当前线程是否已经保存了一个 looper 对象引用；如果已经保存过了，说明是二次创建，抛出异常
+当调用 `Looper.prepare()` 函数创建 looper 对象的时候，会先确定当前线程是否已经保存了一个 looper 对象引用；如果已经保存过了，说明是二次创建，抛出异常
 
 ### Handler 内存泄漏原因？ 为什么其他的内部类没有听说过有这个问题？
 
@@ -405,9 +417,9 @@ public class SafeHandler extends Handler
 
 ### 为何主线程可以直接 new Handler？如果想要在子线程中 new Handler 要做些什么准备？
 
-new Handler 需要对 Looper 进行初始化。需要先调用 `Looper#prepare` 函数创建 looper 对象，再调用 `Looper#loop` 函数启动 Looper 轮询 MessageQueue
+new Handler 需要对 Looper 进行初始化。需要先调用 `Looper.prepare()` 函数创建 looper 对象，再调用 `Looper.loop()` 函数启动 Looper 轮询 MessageQueue
 
-主线程的 Looper 初始化已经在 `ActivityThread#main` 函数中完成了，所以我们创建主线程的 Handler 时不需要再对主线程的 Looper 初始化。但如果在子线程中创建 Handler 就需要对 Looper 初始化
+主线程的 Looper 初始化已经在 `ActivityThread.main()` 函数中完成了，所以我们创建主线程的 Handler 时不需要再对主线程的 Looper 初始化。但如果在子线程中创建 Handler 就需要对 Looper 初始化
 
 ### 子线程中绑定的 Looper，消息队列无消息的时候的处理方案是什么？有什么用？
 
@@ -419,9 +431,9 @@ MessageQueue 中关于存取消息的操作都使用了 synchronized 锁，并�
 
 ### 我们使用 Message 时应该如何创建它？
 
-可以直接 new 也可以通过 Message#obtain 函数创建，但是推荐通过 `Message#obtain` 函数创建
+可以直接 new 也可以通过 `Message.obtain()` 函数创建，但是推荐通过 `Message.obtain()` 函数创建
 
-因为 `Message#obtain` 函数使用了 Message 的回收复用机制；如果通过直接 new 的方式创建 Message 容易导致 **OOM**
+因为 `Message.obtain()` 函数使用了 Message 的回收复用机制；如果通过直接 new 的方式创建 Message 容易导致 **OOM**
 
 ### Looper 死循环为什么不会导致应用卡死（ANR）？
 
@@ -457,7 +469,7 @@ MessageQueue 的休眠分为两种：
 
 Handler 的同步屏障机制是基于一种 target 字段为 null 的 message 类型来实现的
 
-当 target 字段为 null 的 message 被 `MessageQueue#next` 函数取出时，就会开启同步屏障，轮询 MessageQueue 中的异步消息
+当 target 字段为 null 的 message 被 `MessageQueue.next()` 函数取出时，就会开启同步屏障，轮询 MessageQueue 中的异步消息
 
 ## 事件分发
 
@@ -473,50 +485,60 @@ Handler 的同步屏障机制是基于一种 target 字段为 null 的 message �
 
 事件分发是将屏幕触控信息分发给 view 树的一个套机制。
 
-当我们触摸屏幕时，会产生一系列的 MotionEvent 事件对象，经过 view 树的管理者 ViewRootImpl，调用 view 树中根 view 的 `dispatchPointerEvnet` 函数分发事件。
+当我们触摸屏幕时，会产生一系列的 MotionEvent 事件对象，经过 view 树的管理者 ViewRootImpl，调用 view 树中根 view 的 `dispatchPointerEvnet()` 函数分发事件。
 
 ### 简单介绍一下事件分发的流程？
 
-Activity 的 view 树中的根 view 是 DecorView。
+Activity 的 view 树中的根 view 是 DecorView
 
-`DecorView#dispatchPointerEvnet`
---> `Activity#dispatchTouchEvent`
---> `PhoneWindow#superDispatchTouchEvent`
---> `ViewGroup#dispatchTouchEvent`
+调用栈如下：
+
+`DecorView.dispatchPointerEvnet()`
+--> `Activity.dispatchTouchEvent()`
+--> `PhoneWindow.superDispatchTouchEvent()`
+--> `ViewGroup.dispatchTouchEvent()`
 
 ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/92fd8015131b42b89e5376862cce9da7~tplv-k3u1fbpfcp-zoom-1.image)
 
-也就是 **Activity --> Window --> ViewGroup** 的流程。ViewGroup 则会向下去寻找合适的控件并把事件分发给它。
+也就是一个 **Activity --> Window --> ViewGroup** 的流程
+
+当事件传递给 ViewGroup 时，ViewGroup 会向下搜寻条件符合的控件并把事件分发给它
 
 ### 如果要实现一个屏保的效果，能大概说明一下如何实现吗？
 
-当 Activity 接收到 ACTION_DOWN 事件时，会调用 `Activity#onUserInteraction` 函数。
+当 Activity 接收到 ACTION_DOWN 事件时，会调用 `Activity.onUserInteraction()` 函数
 
-这是一个空实现函数，可以让开发者自己去实现。当用户与 Activity 开始进行交互的时候，就会回调这个函数。
+这是一个空实现函数，可供我们自由实现
 
-可以在这个函数中进行取消屏保的操作。
+当用户与 Activity 开始进行交互的时候，就会回调这个函数
+
+可以在这个函数中进行取消屏保的操作
 
 ### ViewGroup 中是如何分发事件的？
 
-ViewGroup 分发事件的逻辑在 `ViewGroup#dispatchTouchEvent` 函数中。
+ViewGroup 分发事件的逻辑在 `ViewGroup.dispatchTouchEvent()` 函数中
 
 ViewGroup 分发事件分为三个步骤：
 
-1. 拦截：判断 ViewGroup 是否需要拦截事件自己处理。
+1. 拦截：判断 ViewGroup 是否需要拦截事件自己处理
 
-2. 寻找子 View：遍历子 View 寻找合适的子 View 来处理事件，如果找到了合适的子 View 为其创建一个 TouchTarget 并插入链表。
+2. 寻找子 View：遍历子 View 寻找合适的子 View 来处理事件，如果找到了合适的子 View 为其创建一个 TouchTarget 并插入链表
 
-3. 派发事件：遍历 TouchTarget 链表派发事件。
+3. 派发事件：遍历 TouchTarget 链表派发事件
 
-事件分发中有一个重要的规则：**一个触控点的一个事件序列只能给一个 view 处理，除非异常情况。即如果 viewGroup 消费了 down 事件，那么子 view 将无法收到任何事件**。
+事件分发中有一个重要的规则：**一个触控点的一个事件序列只能给一个 view 处理，即如果 viewGroup 消费了 down 事件，那么子 view 将无法收到任何事件**
+
+DOWN 事件的分发逻辑如下图所示：
 
 ![](https://note.youdao.com/yws/api/personal/file/8A165A3072E44F2383E95C5CC882E9BA?method=download&shareKey=66467e732fc4da6905ca52c7b3451330)
+
+MOVE 事件的分发逻辑如下图所示：
 
 ![](https://note.youdao.com/yws/api/personal/file/F30AE50E0541490D9B7416CEAC5A02A5?method=download&shareKey=119f79c075b02fa678f0f76d3776b8ff)
 
 ### 一个事件序列一定只能由一个 View 来处理吗？
 
-不一定，当上层的 ViewGroup 决定拦截事件后，原先处理事件的 view 就会收到 cancel 事件，事件序列中的后续事件将由上层 ViewGroup 处理。
+不一定，当上层的 ViewGroup 决定拦截事件后，原先处理事件的 view 就会收到 cancel 事件，事件序列中的后续事件将由上层 ViewGroup 处理
 
 ### 事件类型有哪些？
 
@@ -527,33 +549,39 @@ ViewGroup 分发事件分为三个步骤：
 - ACTION_MOVE：手指在屏幕上滑动时触发，一般会多次触发
 - ACTION_CANCEL：当事件流被中断时触发
 
-一个完整的事件序列是从 ACTION_DOWN 开始，到 ACTION_UP 或 ACTION_CANCEL 结束，其中间可能有多个 ACTION_MOVE / ACTION_POINTER_DOWN / ACTION_POINTER_UP。
+一个完整的事件序列是从 ACTION_DOWN 开始，到 ACTION_UP 或 ACTION_CANCEL 结束，其中间可能有多个 ACTION_MOVE / ACTION_POINTER_DOWN / ACTION_POINTER_UP
 
 ### ViewGroup 是如何将多个手指产生的事件准确派发给不同的子 view？
 
-每个原始 MotionEvent 中都包含了当前屏幕所有触控点的信息。
+每个原始 MotionEvent 中都包含了当前屏幕所有触控点的信息
 
-当一个子 view 消费了 down 事件之后，ViewGroup 会为该 view 创建一个 TouchTarget，这个 TouchTarget 就包含了该 view 的实例与触控点 id。这里的触控 id 可以是多个，也就是一个 view 可接受多个触控点的事件序列。
+当一个子 view 消费了 down 事件之后，ViewGroup 会为该 view 创建一个 TouchTarget，这个 TouchTarget 就包含了该 view 的实例与触控点 id
 
-ViewGroup 中执行派发事件逻辑的函数是 `ViewGroup#dispatchTransformedTouchEvent` 
+这里的触控 id 可以是多个，也就是说一个 view 可接受多个触控点的事件序列
 
-在 `ViewGroup#dispatchTransformedTouchEvent` 中，会先根据 TouchTarget 中记录的触控点 id 将原始 MotionEvent 进行拆分，这样拆分得到的新 MotionEvent 中就只包含指定触控点 id 所对应的触控点信息，拆分后再将新 MotionEvent 派发给子 View，从而达到精准发送触控点信息的目的。
+ViewGroup 中执行派发事件逻辑的函数是 `ViewGroup.dispatchTransformedTouchEvent()` 
+
+在 `ViewGroup.dispatchTransformedTouchEvent()` 中，会先根据 TouchTarget 中记录的触控点 id 将原始 MotionEvent 进行拆分，这样拆分得到的新 MotionEvent 中就只包含指定触控点 id 所对应的触控点信息，拆分后再将新 MotionEvent 派发给子 View，从而达到精准发送触控点信息的目的
+
+POINTER_DOWN 事件的分发逻辑如下图所示：
 
 ![](https://note.youdao.com/yws/api/personal/file/F9A0B60C63EA494F80B9DBD378945D61?method=download&shareKey=80e53f41994e7ef359d2e63b7ce2bf43)
 
 ### View 支持多指操作吗？ 
 
-View默认是不支持的。
+View默认是不支持的
 
-在 `View#onTouchEvent` 函数的默认实现中，并没有通过传入触控点索引来获取触控点信息。
+在 `View.onTouchEvent()` 函数的默认实现中，并没有通过传入触控点索引来获取触控点信息
 
-实现多指操作需要我们重写 `View#onTouchEvent` 函数。
+实现多指操作需要我们重写 `View.onTouchEvent()` 函数
 
 ### View 中是如何处理事件的？
 
+DOWN 事件的处理逻辑如下图所示：
+
 ![](https://note.youdao.com/yws/api/personal/file/094DC0EACCB54F03AABB2A12D48EC25A?method=download&shareKey=d967ff561cf3e2608a5dd39a8412a8c8)
 
-只要调用到了 `View#onTouchEvent` 函数，无论该 view 是否是 enable，只要是 clickable，就是返回 true，相当于处理了事件。
+只要调用到了 `View.onTouchEvent()` 函数，无论该 view 是否是 enable，只要是 clickable，就是返回 true，相当于处理了事件
 
 ### 可以说说事件分发机制中各函数之间的关系吗？
 
@@ -579,54 +607,147 @@ View默认是不支持的。
 
 ### 能大致说明一下 NestedScrollingChild 和 NestedScrollingParent 接口中函数的用途吗？
 
-NestedScrollingChild：
+#### NestedScrollingChild
 
-- `setNestedScrollingEnabled`：启用或禁用嵌套滚动。当设置为 true，且当前界面的 view 的层次结构是支持嵌套滚动的（也就是需要 NestedScrollingParent 嵌套 NestedScrollingChild），才会触发嵌套滚动。一般这个方法内部都是直接代理给 NestedScrollingChildHelper 的同名方法即可
-- `isNestedScrollingEnabled`：判断当前 view 是否支持嵌套滑动。一般也是直接代理给 NestedScrollingChildHelper 的同名方法即可
-- `startNestedScroll`：表示 view 开始滚动了，一般是在 ACTION_DOWN 事件流程中调用，如果返回 true 则表示父 view 支持嵌套滚动。一般也是直接代理给 NestedScrollingChildHelper 的同名方法即可。正常情况下会回调父 view 的 `onStartNestedScroll` 函数
+- `setNestedScrollingEnabled()`：启用或禁用嵌套滚动
+
+  当设置为 true，且当前界面的 view 的层次结构是支持嵌套滚动的 (也就是需要 NestedScrollingParent 嵌套 NestedScrollingChild)，才会触发嵌套滚动
+
+  一般这个方法内部都是直接代理给 NestedScrollingChildHelper 的同名函数即可
+
+- `isNestedScrollingEnabled()`：判断当前 view 是否支持嵌套滑动
+
+  一般也是直接代理给 NestedScrollingChildHelper 的同名函数即可
+
+- `startNestedScroll()`：表示 view 开始滚动了
+  
+  一般是在 ACTION_DOWN 事件流程中调用，如果返回 true 则表示父 view 支持嵌套滚动
+  
+  一般也是直接代理给 NestedScrollingChildHelper 的同名函数即可
+  
+  正常情况下会回调父 view 的 `onStartNestedScroll()` 函数
+  
   - axes：滚动方向
-- `stopNestedScroll`：一般是在事件结束比如 ACTION_UP / ACTION_CANCLE 事件流程中调用，告诉父 view 滚动结束。一般也是直接代理给 NestedScrollingChildHelper 的同名方法即可
-- `hasNestedScrollingParent`：判断当前 view 是否有支持嵌套滑动的父 view。一般也是直接代理给 NestedScrollingChildHelper 的同名方法即可
-- `dispatchNestedScroll`：在子 view 消费滚动距离之后。通过调用该方法，把剩下的滚动距离传给父 view。如果当前没有发生嵌套滚动，或者不支持嵌套滚动，调用该方法也没啥用。内部一般也是直接代理给 NestedScrollingChildHelper 的同名方法即可。返回 true 表示滚动事件分发成功；返回 fasle 表示分发失败
+  
+- `stopNestedScroll()`：一般是在事件结束比如 ACTION_UP / ACTION_CANCLE 事件流程中调用，告诉父 view 滚动结束
+
+  一般也是直接代理给 NestedScrollingChildHelper 的同名函数即可
+
+- `hasNestedScrollingParent()`：判断当前 view 是否有支持嵌套滑动的父 view
+
+  一般也是直接代理给 NestedScrollingChildHelper 的同名函数即可
+
+- `dispatchNestedScroll()`：在子 view 消费滚动距离之后
+  
+  通过调用该方法，把剩下的滚动距离传给父 view
+  
+  如果当前没有发生嵌套滚动，或者不支持嵌套滚动，调用该方法也没啥用
+  
+  内部一般也是直接代理给 NestedScrollingChildHelper 的同名函数即可
+  
+  返回 true 表示滚动事件分发成功；返回 fasle 表示分发失败
+  
   - dxConsumed：被子 view 消费了的水平方向滑动距离
   - dyConsumed：被子 view 消费了的垂直方向滑动距离
   - dxUnconsumed：未被子 view 消费的水平滑动距离
   - dyUnconsumed：未被子 view 消费的垂直滑动距离
-- `dispatchNestedPreScroll`：在子 view 消费滚动距离之前把滑动距离传给父 view。相当于把滑动的优先处理权交给父 view，内部一般也是直接代理给 NestedScrollingChildHelper 的同名方法即可。返回true代表父View消费了滚动距离；返回false代表父View没有消费滚动距离
+  
+- `dispatchNestedPreScroll()`：在子 view 消费滚动距离之前把滑动距离传给父 view
+  
+  相当于把滑动的优先处理权交给父 view，内部一般也是直接代理给 NestedScrollingChildHelper 的同名函数即可
+  
+  返回 true 代表父 View 消费了滚动距离；返回 false 代表父 View 没有消费滚动距离
+  
   - dx：当前水平方向滑动的距离
   - dy：当前垂直方向滑动的距离
   - consumed：输出参数，会将父 view 消费掉的距离封装进该参数。consumed[0] 代表水平方向，consumed[1] 代表垂直方向
-- `dispatchNestedFling`：将惯性滑动的速度分发给父 view。内部一般也是直接代理给NestedScrollingChildHelper的同名方法即可。返回 true 表示父 view 处理了 Fling 事件；返回 false 表示父 view 没有处理 Fling 事件
+  
+- `dispatchNestedFling()`：将惯性滑动的速度分发给父 view
+  
+  内部一般也是直接代理给 NestedScrollingChildHelper 的同名函数即可
+  
+  返回 true 表示父 view 处理了 Fling 事件；返回 false 表示父 view 没有处理 Fling 事件
+  
   - velocityX：表示水平滑动速度
   - velocityY：表示垂直滑动速度
   - consumed：如果传入 true 表示子 view 消费了滑动事件，否则传入 false
-- `dispatchNestedPreFling`：在子 view 自己处理惯性滑动前，先将 Fling 事件分发给父 view。一般来说如果子 view 想自己处理 Fling 事件，就不应该调用该方法给父 view 处理。如果给了父 view 并且返回 true，那表示父 view 已经处理了，子 view 就不应该再做处理。返回 false，代表父 view 没有处理，但是不代表父 view 后面就不用处理了。返回 true 表示父 view 处理了 Fling 事件；返回 false 表示父 view 没有处理 Fling 事件
+  
+- `dispatchNestedPreFling()`：在子 view 自己处理惯性滑动前，先将 Fling 事件分发给父 view
 
-NestedScrollingParent：
+  一般来说如果子 view 想自己处理 Fling 事件，就不应该调用该方法给父 view 处理
 
-- `onStartNestedScroll`：当子 view 调用 `startNestedScroll` 函数时，会回调该函数。主要就是通过返回值告诉系统是否需要对后续的滚动进行处理。返回 true 表示父 view 需要处理嵌套滑动；返回 false 表示父 view 不需要处理嵌套滑动
-  - child：该 NestedScrollingParent 包含的直接子 view。如果只有一层嵌套，那么和 target 是同一个 view。
+  如果给了父 view 并且返回 true，那表示父 view 已经处理了，子 view 就不应该再做处理
+
+  返回 false，代表父 view 没有处理，但是不代表父 view 后面就不用处理了
+
+  返回 true 表示父 view 处理了 Fling 事件；返回 false 表示父 view 没有处理 Fling 事件
+
+#### NestedScrollingParent
+
+- `onStartNestedScroll()`：当子 view 调用 `startNestedScroll()` 函数时，会回调该函数
+
+  主要就是通过返回值告诉系统是否需要对后续的滚动进行处理
+
+  返回 true 表示父 view 需要处理嵌套滑动；返回 false 表示父 view 不需要处理嵌套滑动
+
+  - child：该 NestedScrollingParent 包含的直接子 view
+
+    如果只有一层嵌套，那么和 target 是同一个 view
+
   - target：该 NestedScrollingParent 包含的直接 NestedScrollingChild
+
   - axes：滚动方向
-- `onNestedScrollAccepted`：在开始嵌套滑动之前，让父 view 或者它的父类执行一些配置的初始化。如果 `onStartNestedScroll` 函数返回的是 true，那么紧接着就会调用该函数。
-- `onStopNestedScroll`：停止滚动了，当子 view 调用 `stopNestedScroll` 函数时会回调该函数。
-- `onNestedScroll`：当子 view 调用 `dispatchNestedScroll` 函数时，会回调该函数。也就是父 view 开始分发处理嵌套滑动了。
-  - dxConsumed：已经被target消费掉的水平方向的滑动距离
-  - dyConsumed：已经被target消费掉的垂直方向的滑动距离
-  - dxUnconsumed：tagert未消费的水平方向的滑动距离
-  - dyUnconsumed：tagert未消费的垂直方向的滑动距离
-- `onNestedPreScroll`：当子 view 调用 `dispatchNestedPreScroll` 函数时，会回调该函数。也就是在 target 处理嵌套滑动之前，会先将机会交给父 view。如果父 view 想先消费部分滚动距离，则将消费了的距离放入 consumed 中，传给 target
+
+- `onNestedScrollAccepted()`：在开始嵌套滑动之前，让父 view 或者它的父类执行一些配置的初始化
+
+  如果 `onStartNestedScroll()` 函数返回的是 true，那么紧接着就会调用该函数
+
+- `onStopNestedScroll()`：停止滚动了
+
+  当子 view 调用 `stopNestedScroll()` 函数时会回调该函数
+
+- `onNestedScroll()`：当子 view 调用 `dispatchNestedScroll()` 函数时，会回调该函数
+  
+  表示父 view 开始处理嵌套滑动了
+  
+  - dxConsumed：已经被 target 消费掉的水平方向的滑动距离
+  - dyConsumed：已经被 target 消费掉的垂直方向的滑动距离
+  - dxUnconsumed：tagert 未消费的水平方向的滑动距离
+  - dyUnconsumed：tagert 未消费的垂直方向的滑动距离
+  
+- `onNestedPreScroll()`：当子 view 调用 `dispatchNestedPreScroll()` 函数时，会回调该函数
+  
+  也就是在 target 处理嵌套滑动之前，会先将机会交给父 view
+  
+  如果父 view 想先消费部分滚动距离，则将消费了的距离放入 consumed 中，传给 target
+  
   - dx：水平滑动距离
   - dy：竖直滑动距离
   - consumed：表示父 view 需要消费的滚动距离，consumed[0] 和 consumed[1] 分别表示父 view 在 x 和 y 方向上消费的距离
-- `onNestedFling`：当子 view 调用 `dispatchNestedFling` 函数时，会回调该函数。父 view 可以捕获对内部 NestedScrollingChild 的 Fling 事件。返回 true 表示子 view 消费了 Fling 事件；返回 false 表示子 view 没有消费 Fling 事件
+  
+- `onNestedFling()`：当子 view 调用 `dispatchNestedFling()` 函数时，会回调该函数
+  
+  父 view 可以捕获对内部 NestedScrollingChild 的 Fling 事件
+  
+  返回 true 表示子 view 消费了 Fling 事件；返回 false 表示子 view 没有消费 Fling 事件
+  
   - velocityX：水平方向的滑动速度
   - velocityY：垂直方向的滑动速度
   - consumed：Fling 事件是否被 target 消费了
-- `onNestedPreFling`：当子 view 调用 `dispatchNestedPreFling` 函数时，会回调该函数。同 onNestedPreScroll 一样，也是给父 view 优先处理的权利。返回 true 表示父 view 要处理 Fling 事件，子 view 就不要处理了
-- `getNestedScrollAxes`：返回当前嵌套滑动的方向。一般直接通过 `NestedScrollingParentHelper#getNestedScrollAxes` 函数返回即可
+  
+- `onNestedPreFling()`：当子 view 调用 `dispatchNestedPreFling()` 函数时，会回调该函数
+
+  同 onNestedPreScroll 一样，也是给父 view 优先处理的权利
+
+  返回 true 表示父 view 要处理 Fling 事件，子 view 就不要处理了
+
+- `getNestedScrollAxes()`：返回当前嵌套滑动的方向
+
+  一般直接返回 `NestedScrollingParentHelper.getNestedScrollAxes()` 函数即可
 
 ### 简单说明一下嵌套滑动机制的流程？
+
+嵌套滑动机制整体流程如下图：
 
 ![](https://note.youdao.com/yws/api/personal/file/A3BB9F99217D4FA7AF0F58EBECA7C5D5?method=download&shareKey=8a79605a28dbea47117c3d6fd5bc83ca)
 
@@ -638,13 +759,17 @@ NestedScrollingParent：
 
 ### 如何加载 xml 布局文件？
 
-可以通过调用 `LayoutInflater#inflate` 函数传入对应的 xml 文件资源 id 来加载对应的 xml 布局
+可以通过调用 `LayoutInflater.inflate()` 函数传入对应的 xml 文件资源 id 来加载对应的 xml 布局
 
-在 `LayoutInflater#inflate` 函数中，会先调用 `LayoutInflater#createViewFromTag` 函数将 xml 文件中的根标签解析；
+在 `LayoutInflater.inflate()` 函数中，会先调用 `LayoutInflater.createViewFromTag()` 函数将 xml 文件中的根标签解析
+
+`LayoutInflater.inflate()` 函数运行逻辑如下图：
 
 ![](https://note.youdao.com/yws/api/personal/file/F470A3BE84C740259363601795763E3B?method=download&shareKey=628730c018777459e00fc05b45255d3b)
 
-再调用 `LayoutInflater#rInflateChildren` 函数遍历 xml 文件中的所有子标签并解析；
+再调用 `LayoutInflater.rInflateChildren()` 函数遍历 xml 文件中的所有子标签并解析
+
+`LayoutInflater.rInflateChildren()` 函数运行逻辑如下图：
 
 ![](https://note.youdao.com/yws/api/personal/file/0CB1914B27A84321AEBB7A68973CAEA3?method=download&shareKey=810a2fe6ae90f6923bdf00fac75c7198)
 
@@ -652,41 +777,53 @@ NestedScrollingParent：
 
 ### Activity 中的视图是在什么时候可见的？
 
-根据 Activity 启动流程，最终启动的 Activity 会回调 `ActivityThread#handleResumeActivity` 函数
+根据 Activity 启动流程，最终启动的 Activity 会回调 `ActivityThread.handleResumeActivity()` 函数
 
-在 `ActivityThread#handleResumeActivity` 函数中，会通过 `WindowManager#addView` 函数将 Activity 的 DecorView 添加到窗口中
+在 `ActivityThread.handleResumeActivity()` 函数中，会通过 `WindowManager.addView()` 函数将 Activity 的 DecorView 添加到窗口中
 
-最终会调用到 `ViewRootImpl#requestLayout` 函数执行 view 树的绘制流程
+最终会调用到 `ViewRootImpl.requestLayout()` 函数执行 view 树的绘制流程
 
 绘制流程结束后，Activity 中的视图才真正可见了
 
 ### Window、Activity、PhoneWindow、ViewRootImpl、DecorView 之间的关系？
 
+整体关系如下图所示：
+
 ![](https://note.youdao.com/yws/api/personal/file/B25B188BE14D4B1998316FC134BA5B8D?method=download&shareKey=21f3a1f083ae2b7c4c70fa3bcde2285b)
 
-在 Android 中 window 是一个抽象的概念，本身并不存在，可以理解为一个 view 树就是一个 window；
+在 Android 中 window 是一个抽象的概念，本身并不存在，可以理解为一个 view 树就是一个 window
 
-所有的 window 都由系统服务 wms 管理，window 在 wms 中的存在形式是 windowStatus，每一个 windowStatus 会对应着一个 ViewRootImpl，每一个 ViewRootImpl 对应着管理一个 view 树；
+所有的 window 都由系统服务 wms 管理，window 在 wms 中的存在形式是 windowStatus，每一个 windowStatus 会对应着一个 ViewRootImpl，每一个 ViewRootImpl 对应着管理一个 view 树
 
 Activity 持有了 PhoneWindow，PhoneWindow 持有了 DecorView 和一些 window 的属性参数，DecorView 是 view 树的根
 
 ### 了解 View 的绘制流程吗？
 
-Activity 中 View 的绘制流程是从 `ViewRootImpl#requestLayout` 函数开始的
+Activity 中 View 的绘制流程是从 `ViewRootImpl.requestLayout()` 函数开始的
+
+`ViewRootImpl.requestLayout()` 函数运行逻辑如下图：
 
 ![](https://note.youdao.com/yws/api/personal/file/3AEA27E9FC9E4D2CBA2F2ACF9145F6CA?method=download&shareKey=a7d17ffdd33196dd3e6fbce9f44c3899)
 
-`performMeasure`、`performLayout`、`performDraw` 函数会递归执行 view 树中所有 view 的 `onMeasure`、`onLayout`、`onDraw` 函数
+`performMeasure()`、`performLayout()`、`performDraw()` 函数会递归执行 view 树中所有 view 的 `onMeasure()`、`onLayout()`、`onDraw()` 函数
+
+`performMeasure()` 函数运行逻辑如下图：
 
 ![](https://note.youdao.com/yws/api/personal/file/DE0969AB3D3249A9A7BD8A749F8EBA43?method=download&shareKey=570593d8955fff61cc1f10107c74e382)
 
+`performLayout()` 函数运行逻辑如下图：
+
 ![](https://note.youdao.com/yws/api/personal/file/69413B01BE02438E886C8749BBB0905B?method=download&shareKey=24c964f7e81975669bc8ed11f0a97b4f)
+
+`performDraw()` 函数运行逻辑如下图：
 
 ![](https://note.youdao.com/yws/api/personal/file/ABF7C614E6C2423A9DE00A61E1DA0014?method=download&shareKey=360fa8829304adbee5fd17aec3163bcc)
 
-Activity 中 View 的绘制流程是在 `onResume` 函数回调之后才开始的，因此在 `onResume` 函数回调之后 Activity 中的视图仍未被绘制出来
+Activity 中 View 的绘制流程是在 `onResume()` 函数回调之后才开始的，因此在 `onResume()` 函数回调时 Activity 中的视图仍未被绘制出来
 
 ### View 的生命周期你知道吗？
+
+整体生命周期如下图所示：
 
 ![](https://note.youdao.com/yws/api/personal/file/AB1103D66EE24C9DAEF5C367333EFAB3?method=download&shareKey=4964945fcf9ca7aa3dab3a849441f2f5)
 
@@ -704,7 +841,7 @@ Activity 中 View 的绘制流程是在 `onResume` 函数回调之后才开始�
 
 但是在 Android 中，图片数据经过解码加载成 Bitmap 后，分辨率可能会发生变化，因此图片占用的实际内存大小就有可能发生变化
 
-例如：通过 `Bitmap.decodeResource` 函数加载 res 目录下的资源图片时，`Bitmap.decodeResource` 函数内部会根据图片资源所存放的不同路径进行一次分辨率的转换，因此通过 `Bitmap.decodeResource` 函数加载同一张资源图片有可能所占用内存的大小是不同的
+例如：通过 `Bitmap.decodeResource()` 函数加载 res 目录下的资源图片时，`Bitmap.decodeResource()` 函数内部会根据图片资源所存放的不同路径进行一次分辨率的转换，因此通过 `Bitmap.decodeResource()` 函数加载同一张资源图片有可能所占用内存的大小是不同的
 
 ### 实现一个图片加载框架，需要考虑什么？
 
@@ -714,8 +851,8 @@ Activity 中 View 的绘制流程是在 `onResume` 函数回调之后才开始�
   - 第一级缓存：普通的 List 集合
   - 第二级缓存：LruCache
   - 第三级缓存：DiskLruCache
-- 防止OOM：对加载的图片进行压缩（降低分辨率）
-- 防止内存泄漏：软引用（第一级缓存）
+- 防止OOM：对加载的图片进行压缩 (降低分辨率)
+- 防止内存泄漏：软引用 (第一级缓存)
 
 ###  LaunchActivity 同时加载的图片太多如何优化？
 
@@ -730,17 +867,19 @@ Activity 中 View 的绘制流程是在 `onResume` 函数回调之后才开始�
 ### Glide 是如何实现图片加载优化的？
 
 - 缓存优化：三级缓存
-  - 第一级缓存：活动缓存，ArrayList，缓存**仍被界面所使用**的图片资源
-  - 第二级缓存：内存缓存，LruCache，缓存**已不被界面所使用却仍存在于内存中**的图片资源
-  - 第三级缓存：磁盘缓存，DiskLruCache，缓存**根据策略写入磁盘**的图片资源
-
-![Glide 缓存机制](https://note.youdao.com/yws/api/personal/file/WEB9b560a8f311723207e80e585ae062968?method=download&shareKey=88e254d7494ff46006513640c503db1c)
-
+  - 第一级缓存：活动缓存，ArrayList，缓存 **仍被界面所使用** 的图片资源
+  - 第二级缓存：内存缓存，LruCache，缓存 **已不被界面所使用却仍存在于内存中** 的图片资源
+  - 第三级缓存：磁盘缓存，DiskLruCache，缓存 **根据策略写入磁盘** 的图片资源
+  
+  Glide 缓存机制的整体流程如下图：
+  
+  ![Glide 缓存机制](https://note.youdao.com/yws/api/personal/file/WEB9b560a8f311723207e80e585ae062968?method=download&shareKey=88e254d7494ff46006513640c503db1c)
+  
 - 加载优化：根据控件的宽高缩放图片的分辨率
 
-Glide 在执行加载图片的请求时，会先判断是否调用了 `override` 函数指定图片的分辨率；如果没有指定，就根据控件的 LayoutParams 缩放图片的分辨率
+  Glide 在执行加载图片的请求时，会先判断是否调用了 `override` 函数指定图片的分辨率；如果没有指定，就根据控件的 LayoutParams 缩放图片的分辨率
 
-所以 Glide 加载时是先对图片压缩再将图片加载进内存，通过  `BitmapFactory#decodeStream` 函数并传入 BitmapFactory.Options 实现
+  所以 Glide 加载时是先对图片压缩再将图片加载进内存，通过  `BitmapFactory#decodeStream` 函数并传入 BitmapFactory.Options 实现
 
 ### 使用 Glide 偶尔会出现内存溢出问题，请说说大概是什么原因？
 
@@ -754,19 +893,23 @@ Glide 活动缓存中的资源跟随通过 `Glide#with` 函数传入的 context 
 
 如果使用 Lru 算法来直接缓存还在 UI 界面上显示的资源，就有可能会造成用户在回退浏览之前的图片时，出现重复网络请求原先图片资源的情况，这样不仅消耗了用户的流量还重复对图片进行压缩处理，占用多余内存的同时加载图片也很缓慢
 
-活动缓存缓存的是仍在 UI 界面上显示的资源，Glide 设置三级缓存的目的就是**最大程度上减少重复网络请求原先图片资源的情况发生**
+活动缓存缓存的是仍在 UI 界面上显示的资源，Glide 设置三级缓存的目的就是 **最大程度上减少重复网络请求原先图片资源的情况发生**
 
 ### Glide 加载一个 100x100 的图片，是否会先缩放后再加载？如果再把这张图片放到一个 300x300 的 view 上会怎样？
 
-Glide 在执行加载图片的请求时，会先通过计算确定图片的目标宽高。如果我们没有调用 `override` 函数指定具体的目标宽高，那么 Glide 会根据所要显示图片的 view 的 LayoutParams 进行综合计算
+Glide 在执行加载图片的请求时，会先通过计算确定图片的目标宽高。如果我们没有调用 `override()` 函数指定具体的目标宽高，那么 Glide 会根据所要显示图片的 view 的 LayoutParams 进行综合计算
 
-当目标宽高得到后，就会根据目标宽高以及其他参数（例如：数据源信息）构建 Key。这个 Key 不仅唯一标识缓存中的资源，也唯一标识 Glide 加载图片的请求操作
+当目标宽高得到后，就会根据目标宽高以及其他参数 (例如：数据源信息) 构建 Key
+
+这个 Key 不仅唯一标识缓存中的资源，也唯一标识 Glide 加载图片的请求操作
 
 也就是说当目标宽高改变之后，即使数据源信息相同，Glide 也会把同一张图片的加载请求看成两个不同的请求
 
-所以如果将一张 100x100 的图片资源放到一个 300x300 的 view 上，Glide 会执行一个新的加载 300x300 的图片的请求。即使这张图片是同一张图片
+所以如果将一张 100x100 的图片资源放到一个 300x300 的 view 上，Glide 会执行一个新的加载 300x300 的图片的请求，即使这张图片是同一张图片
 
-Glide 不会直接将图片的完整尺寸全部加载到内存中。Glide 会先通过计算确定图片的最终目标宽高，这样通过 `BitmapFactory#decodeStream` 函数解码的时候就降低了图片的分辨率，可以有效优化图片的占用内存，从而帮助我们节省内存开支
+Glide 不会直接将图片的完整尺寸全部加载到内存中
+
+Glide 会先通过计算确定图片的最终目标宽高，这样通过 `BitmapFactory.decodeStream()` 函数解码的时候就降低了图片的分辨率，可以有效优化图片的占用内存，从而帮助我们节省内存开支
 
 ### 为什么选择 Glide 不选择其他的图片加载框架？
 
@@ -848,11 +991,11 @@ public Intent putExtras(Bundle extras)
 }
 ```
 
-`putExtra` 函数有多个重载形式，其实现都大同小异
+`putExtra()` 函数有多个重载形式，其实现都大同小异
 
-可以看到 `putExtra` 函数实际上也是通过 Bundle 进行传输，Intent 内部会持有一个 Bundle
+可以看到 `putExtra()` 函数实际上也是通过 Bundle 进行传输，Intent 内部会持有一个 Bundle
 
-当我们通过 `putExtras` 函数设置我们自定义的 Bundle 时，会将我们 Bundle 中的数据全部添入 Intent 内部的 Bundle 中
+当我们通过 `putExtras()` 函数设置我们自定义的 Bundle 时，会将我们 Bundle 中的数据全部添入 Intent 内部的 Bundle 中
 
 ### Bundle 的最大内存限制？Bundle 传输有什么要求？
 
@@ -874,7 +1017,7 @@ ContentProvider 是 Android 提供的专门用于不同应用间进行数据共�
 
 我们可以通过自定义 ContentProvider 的方式，将需要进行 IPC 通信的数据通过自定义的 ContentProvider 发送给其他进程
 
-ContentProvider 提供了 `query` 、`insert` 、`delete` 、`update` 等函数供我们对数据进行增删改查，我们可以创建一个数据库（通过 SQLiteOpenHelper），通过 ContentProvider 来操作这个数据库，从而实现 IPC 通信
+ContentProvider 提供了 `query()` 、`insert()` 、`delete()` 、`update()` 等函数供我们对数据进行增删改查，我们可以创建一个数据库 (通过 SQLiteOpenHelper)，通过 ContentProvider 来操作这个数据库，从而实现 IPC 通信
 
 #### 数据发送方
 
@@ -1241,7 +1384,7 @@ public class MainActivity extends AppCompatActivity
 
 ### 了解 mmap 吗？
 
-Linux 中通过将一个虚拟内存区域与一个磁盘上的物理内存区域关联起来，以初始化这个虚拟内存区域的内容，这个过程称为 **内存映射（memory mapping）**
+Linux 中通过将一个虚拟内存区域与一个磁盘上的物理内存区域关联起来，以初始化这个虚拟内存区域的内容，这个过程称为 **内存映射 (memory mapping)**
 
 mmap 是 Linux 中一种实现内存映射的方式
 
@@ -1253,13 +1396,13 @@ Binder IPC 通信的一次拷贝就是通过 mmap 来实现的
 
 ### 了解 Binder 机制吗？说一下其优缺点？
 
-Binder 通信最大的特点就是**只需要一次数据拷贝**
+Binder 通信最大的特点就是 **只需要一次数据拷贝**
 
 在所有 Linux 系统里的跨进程通信方式中，除了共享内存，都需要进行两次数据拷贝：将发送方进程中的数据先拷贝到内核空间中，再将内核空间中的数据拷贝到接收方进程
 
 ![](https://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/9ad5f9e0a47a44f7972a71b8209c0d29~tplv-k3u1fbpfcp-zoom-in-crop-mark:717:0:0:0.awebp)
 
-而 Binder 通信使用了 **mmap** 技术，实现了内存映射，所以 Binder 通信只需要进行一次数据拷贝：将发送方进程中的数据拷贝到内核空间中
+而 Binder 通信使用了 **mmap** 技术，实现了内存映射，所以 Binder 通信只需要进行一次数据拷贝 —— 将发送方进程中的数据拷贝到内核空间中
 
 ![](https://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/f7fcbd1436c14b84a7872299991621a9~tplv-k3u1fbpfcp-zoom-in-crop-mark:717:0:0:0.awebp)
 
@@ -1583,15 +1726,23 @@ Socket 的优点在于并不仅仅可以用于跨进程通信，还可以用于�
 
 Serializable 是 Java 原生提供的标准序列化方案
 
-Java 原生的序列化方案是**将对象序列化后的二进制串通过字节流进行传输**，而 Serializable 则是用来标志当前类可以被序列化 / 反序列化
+Java 原生的序列化方案是 **将对象序列化后的二进制串通过字节流进行传输**，而 Serializable 则是用来标志当前类可以被序列化 / 反序列化
 
-Java 原生的序列化是通过 `ObjectOutputStream#writeObject` 函数 和 `ObjectInputStream#readObject` 函数来实现的
+Java 原生的序列化是通过 `ObjectOutputStream.writeObject()` 函数 和 `ObjectInputStream.readObject()` 函数来实现的
 
 被 Serializable 标志的类需要注意以下几点：
 
-- **被 static 修饰的字段和被 transient 修饰的字段不会参与序列化**。当对象被反序列化时，其中不参与序列化的字段会通过无参构造函数重新进行初始化（赋值为默认值）。因此，**实现 Serializable 接口的类的无参构造函数必须可以访问**
-- 实现了 Serializable 接口的类，其子类也是可序列化的。如果子类实现了 Serializable 接口但是父类没有实现，那么父类的的无参构造函数必须可以访问
-- 在反序列化时，类的字段发生变化，不会发生错误。与原来相比新增的字段会通过无参构造函数重新进行初始化（赋值为默认值）
+- 被 static 修饰的字段和被 transient 修饰的字段不会参与序列化
+
+  当对象被反序列化时，其中不参与序列化的字段会通过无参构造函数重新进行初始化 (赋值为默认值)
+
+  因此，实现 Serializable 接口的类的无参构造函数必须可以访问
+
+- 实现了 Serializable 接口的类，其子类也是可序列化的
+
+  如果子类实现了 Serializable 接口但是父类没有实现，那么父类的的无参构造函数必须可以访问
+
+- 在反序列化时，类的字段发生变化，不会发生错误。与原来相比新增的字段会通过无参构造函数重新进行初始化 (赋值为默认值)
 
 Serializable 序列化需要通过 IO 流进行传输，基于磁盘，同时还使用到了反射，可能会触发 GC，性能开销较大；由于其基于 IO 流，因此更适合用于网络传输和持久化
 
@@ -1611,13 +1762,13 @@ serialVersionUID 是序列化 / 反序列化前后的唯一标识符，用于反
 
 Parcelable 是 Android 原生提供的序列化方案。Parcelable 主要用于 Android 四大组件间通信以及进程间通信
 
-Parcelable 的序列化方案是**将对象中的数据写入 Parcel，将 Parcel 通过 binder 通信传输到目标进程中**
+Parcelable 的序列化方案是 **将对象中的数据写入 Parcel，将 Parcel 通过 binder 通信传输到目标进程中**
 
-在实现了 Parcelable 接口的类中，需要重写 `Parcelable#writeToParcel` 函数，完成将对象中的数据写入 Parcel（调用 `Parcel#writeXXX` 函数）
+在实现了 Parcelable 接口的类中，需要重写 `Parcelable.writeToParcel()` 函数，完成将对象中的数据写入 Parcel (调用 `Parcel.writeXXX()` 函数)
 
 还需要创建一个 Creator 类型的字段，用于反序列化，调用参数类型是 Parcel 的单参构造函数创建对象
 
-因此还需要创建一个参数类型是 Parcel 的单参构造函数，将 Parcel 中的数据读取出来对字段进行赋值（调用 `Parcel#readXXX` 函数）
+因此还需要创建一个参数类型是 Parcel 的单参构造函数，将 Parcel 中的数据读取出来对字段进行赋值 (调用 `Parcel.readXXX()` 函数)
 
 Parcelable 序列化需要通过 Binder 进行传输，基于内存，性能开销较低；由于 Binder、Parcel 都是只存在于 Android 系统中的概念，并且 Binder 是基于内存的 IPC 传输方式，因此更适合用于 Android 系统中的 IPC 通信
 
@@ -1629,17 +1780,17 @@ Parcelable 序列化需要通过 Binder 进行传输，基于内存，性能开�
 | 缺点     | 通过字节流传输，基于硬盘，同时内部还使用到了反射，可能会触发 GC，性能较低。 | 使用复杂，需要重写函数；同时 Parcelable 不能保证，当外部设备（硬盘）发生变化时数据的持续性。 |
 | 应用场景 | 网络传输和持久化                                             | IPC 通信                                                     |
 
-### [Serializable 序列化为什么会破坏单例模式？如何解决？](https://blog.csdn.net/qq_33709508/article/details/105356327)
+### Serializable 序列化为什么会破坏单例模式？如何解决？
 
-通过 Serializable 进行序列化传输，需要调用 `ObjectInputStream#readObject` 函数来反序列化对象
+通过 Serializable 进行序列化传输，需要调用 `ObjectInputStream.readObject()` 函数来反序列化对象
 
-在 `ObjectInputStream#readObject` 函数中，会通过反射调用单例类中的私有构造函数来创建一个新的对象，导致序列化前的对象与反序列化后的对象不一致，致使单例模式失效
+在 `ObjectInputStream.readObject()` 函数中，会通过反射调用单例类中的私有构造函数来创建一个新的对象，导致序列化前的对象与反序列化后的对象不一致，致使单例模式失效
 
 如何解决？
 
-在 `ObjectInputStream#readObject` 函数中，会尝试通过反射调用单例类中的私有 `readObject` 和 `readResolve` 函数（不是重写，是我们自己定义的名为 readObject / readResolve 的函数），如果我们没有定义，就会根据默认的逻辑来进行反序列化
+在 `ObjectInputStream.readObject()` 函数中，会尝试通过反射调用单例类中的私有 `readObject()` 和 `readResolve()` 函数 (不是重写，是我们自己定义的名为 readObject / readResolve 的函数)，如果我们没有定义，就会根据默认的逻辑来进行反序列化
 
-根据 `ObjectInputStream#readObject` 函数内部的调用栈，我们知道 `readObject` 函数会优先于 `readResolve` 函数执行，所以解决方案就是 —— 在单例类中定义一个 `readResolve` 函数，使其返回单例对象
+根据 `ObjectInputStream.readObject()` 函数内部的调用栈，我们知道 `readObject()` 函数会优先于 `readResolve()` 函数执行，所以解决方案就是 —— 在单例类中定义一个 `readResolve()` 函数，使其返回单例对象
 
 ```java
 class Single implements Serializable
@@ -1672,9 +1823,11 @@ class Single implements Serializable
 }
 ```
 
+[为什么序列化会破化单例？](https://blog.csdn.net/qq_33709508/article/details/105356327)
+
 ### 有了解过 protobuf 吗？简单介绍一下？
 
-Google Protocol Buffer（简称 Protobuf）是 Google 公司提出的一种灵活高效可序列化的数据协议，相较于传统的 Json、XML 等通讯数据协议，具有更快、更简单、更轻量级等特性
+Google Protocol Buffer (简称 Protobuf) 是 Google 公司提出的一种灵活高效可序列化的数据协议，相较于传统的 Json、XML 等通讯数据协议，具有更快、更简单、更轻量级等特性
 
 支持多种语言，只需定义好数据结构，利用 Protobuf 框架生成源代码，就可很轻松地实现数据结构的序列化和反序列化；一旦需求有变，可以更新数据结构，而不会影响已部署程序
 
@@ -1736,29 +1889,29 @@ SharedPreferences 对象创建后会被缓存在一个 Map 集合中，以 xml �
 
 ##### 问题一
 
-第一次通过 `context.getSharedPreferences(String name, int mode)` 函数获取 SharedPreferences 对象时，会单独使用一个线程来读取对应的 xml 文件
+第一次通过 `context.getSharedPreferences()` 函数获取 SharedPreferences 对象时，会单独使用一个线程来读取对应的 xml 文件
 
-若此时 UI 线程通过 `getXXX` 函数尝试访问 SharedPreferences 中的内容，如果读取还未结束，则 UI 线程会被阻塞，直到读取完成
+若此时 UI 线程通过 `getXXX()` 函数尝试访问 SharedPreferences 中的内容，如果读取还未结束，则 UI 线程会被阻塞，直到读取完成
 
 如果 xml 文件中的内容过多，就会导致 UI 线程被阻塞的时间过长，最终造成 ANR
 
-所以 xml 文件中的内容不宜过多，xml 文件大小不宜过大，Google 推荐我们将**不同业务模块的数据分文件存储**，根据业务逻辑将数据存放在不同的 xml 文件中
+所以 xml 文件中的内容不宜过多，xml 文件大小不宜过大，Google 推荐我们将 **不同业务模块的数据分文件存储**，根据业务逻辑将数据存放在不同的 xml 文件中
 
 ##### 问题二
 
-当通过 `apply()` 函数提交修改时，会先向 QueuedWork 提交一个 awaitCommit 任务，将 mModified 集合（Editor 中保存 `putXXX` 函数修改记录的集合）与 mMap 集合合并，将合并后得到的结果（MemoryCommitResult）封装成 Runnable（writeToDiskRunnable）交给子线程 queued-work-looper 执行
+当通过 `apply()` 函数提交修改时，会先向 QueuedWork 提交一个 awaitCommit 任务，将 mModified 集合 (Editor 中保存 `putXXX()` 函数修改记录的集合) 与 mMap 集合合并，将合并后得到的结果 (MemoryCommitResult) 封装成 Runnable (writeToDiskRunnable) 交给子线程 queued-work-looper 执行
 
 若在 writeToDiskRunnable 任务被执行前，Activity 处于 Pause / Stop 状态，就会执行 `QueuedWork.waitToFinish()` 函数，执行先前提交的 awaitCommit 任务
 
 awaitCommit 任务会通过 `CountDownLatch.await()` 阻塞 UI 线程，直至 writeToDiskRunnable 任务被执行，SharedPreferences 写入完成
 
-writeToDiskRunnable 任务会将 MemoryCommitResult **覆盖**写入 xml 文件，并通过 `CountDownLatch.countDown()` 函数唤醒 UI 线程
+writeToDiskRunnable 任务会将 MemoryCommitResult **覆盖** 写入 xml 文件，并通过 `CountDownLatch.countDown()` 函数唤醒 UI 线程
 
-根据 SharedPreferences 设计的初衷，这种等待行为不会有什么问题，但在实际开发过程中由于 `apply()` 函数被过度使用（SPUtils.putXXX() 等这类设计的粗暴使用），UI 线程所等待的时间被不可控的拉长，最终导致 ANR，这个问题越在业务繁重的 App 上体现得越明显
+根据 SharedPreferences 设计的初衷，这种等待行为不会有什么问题，但在实际开发过程中由于 `apply()` 函数被过度使用 (SPUtils.putXXX() 等这类设计的粗暴使用)，UI 线程所等待的时间被不可控的拉长，最终导致 ANR，这个问题越在业务繁重的 App 上体现得越明显
 
 ### SharedPreferences 是进程安全的吗？为什么？
 
-不是，SharedPreferences 本身[不支持多进程场景](#不支持多进程场景)
+不是，SharedPreferences 本身 [不支持多进程场景](#不支持多进程场景)
 
 ### SharedPreferences 是线程安全的吗？commit 和 apply 的区别？
 
@@ -1774,11 +1927,11 @@ commit 和 apply 操作都会将 mModified 和 mMap 集合进行合并，二者�
 
 在 `apply()` 函数中，会调用 `commitToMemory()` 函数将 mModified 和 mMap 集合进行合并
 
-通过 `getXXX` 函数获取数据，实际上是访问 mMap 集合，此时的 mMap 集合已经与 mModified 集合进行了合并，是能够立即获取到新提交的数据的
+通过 `getXXX()` 函数获取数据，实际上是访问 mMap 集合，此时的 mMap 集合已经与 mModified 集合进行了合并，是能够立即获取到新提交的数据的
 
 ### 使用 SharedPreferences 的 get 和 put 函数读写数据会面临什么问题？IO 性能方面怎么解决？
 
-使用 SharedPreferences 的 get 和 put 函数读写数据都有可能会[造成 ANR](#容易导致 ANR)
+使用 SharedPreferences 的 get 和 put 函数读写数据都有可能会 [造成 ANR](#容易导致 ANR)
 
 SharedPreferences 中涉及 IO 的操作有：
 
@@ -1794,13 +1947,13 @@ SharedPreferences 中涉及 IO 的操作有：
 
 `QueuedWork.waitToFinish()` 函数是由 ActivityThread 触发的，ActivityThread 中有一个 Handler 变量，我们可以通过 Hook 拿到此变量，给此 Handler 设置一个 callback，此 callback 会优先于 handleMessage 处理
 
-在 callback 中通过反射获取 QueuedWork.sFinishers 集合（Android 8.0 以下此集合叫 sPendingWorkFinishers，Android 8.0 以上此集合叫 sFinishers），并将此集合清空
+在 callback 中通过反射获取 QueuedWork.sFinishers 集合 (Android 8.0 以下此集合叫 sPendingWorkFinishers，Android 8.0 以上此集合叫 sFinishers)，并将此集合清空
 
 还有一种就是全局替换写入方式，通过插桩的方式，替换所有的 API 实现，采用其他的存储方式，这种方式修复成本和风险较大，但是后期可以随机的替换存储方式，使用比较灵活
 
 ### SharedPreferences 产生 ANR 的原因？如何解决？
 
-随着 App 业务变得越来越繁重，SharedPreferences 很[容易导致 ANR](#容易导致 ANR) 的产生
+随着 App 业务变得越来越繁重，SharedPreferences 很 [容易导致 ANR](#容易导致 ANR) 的产生
 
 字节跳动技术团队针对其原因提出了两套解决方案：
 
@@ -1816,7 +1969,7 @@ SharedPreferences 中涉及 IO 的操作有：
 
   `QueuedWork.waitToFinish()` 函数是由 ActivityThread 触发的，ActivityThread 中有一个 Handler 变量，我们可以通过 Hook 拿到此变量，给此 Handler 设置一个 callback，此 callback 会优先于 handleMessage 处理
 
-  在 callback 中通过反射获取 QueuedWork.sFinishers 集合（Android 8.0 以下此集合叫 sPendingWorkFinishers，Android 8.0 以上此集合叫 sFinishers），并将此集合清空
+  在 callback 中通过反射获取 QueuedWork.sFinishers 集合 (Android 8.0 以下此集合叫 sPendingWorkFinishers，Android 8.0 以上此集合叫 sFinishers)，并将此集合清空
 
   还有一种就是全局替换写入方式，通过插桩的方式，替换所有的 API 实现，采用其他的存储方式，这种方式修复成本和风险较大，但是后期可以随机的替换存储方式，使用比较灵活
 
@@ -1828,7 +1981,7 @@ DataStore 是 Google Jetpack 推出的一种数据存储解决方案，允许我
 
 在轻量级数据持久化存储的场景上，一直以来我们的选择都是 SharedPreferences；但随着业务场景和开发技术的不断发展，SharedPreferences 所存在的缺陷已经不能被忽视了，以上的两个框架，都一定程度上解决了 SharedPreferences 所存在的缺陷：
 
-* SharedPreferences 不支持多进程场景；MMKV 基于 mmap 内存映射持久化数据，完美解决了多进程下数据同步问题；DataStore 依旧不支持多进程场景（可能 Google 认为一个轻量级数据持久化存储框架不需要多进程吧......）
+* SharedPreferences 不支持多进程场景；MMKV 基于 mmap 内存映射持久化数据，完美解决了多进程下数据同步问题；DataStore 依旧不支持多进程场景 (可能 Google 认为一个轻量级数据持久化存储框架不需要多进程吧......)
 * SharedPreferences 会阻塞 UI 线程导致 ANR；MMKV 基于 mmap 内存映射持久化数据，由操作系统负责将数据写入文件，不必担心 App Crash 导致数据丢失，自然就没有必要阻塞 UI 线程了；DataStore 内部使用 Kotlin 协程和 Flow 通过挂起的方式来避免阻塞 UI 线程，避免产生 ANR
 
 | 功能                  | MMKV | JetPack DataStore | SharedPreferences |
@@ -1856,13 +2009,13 @@ DataStore 是 Google Jetpack 推出的一种数据存储解决方案，允许我
 
 >  Jetpack 是一套组件库，可帮助开发人员遵循最佳实践，减少样板代码并编写可在 Android 版本和设备上一致工作的代码，以便开发人员可以专注于他们关心的代码
 
-Google 将所有**目前仍被使用且打算继续维护的组件**都归到了 jetpack 的范畴中，包括我们熟知的 ViewPager、Fragment、RecyclerView 等等
+Google 将所有 **目前仍被使用且打算继续维护的组件** 都归到了 jetpack 的范畴中，包括我们熟知的 ViewPager、Fragment、RecyclerView 等等
 
 当然 jetpack 中也出现了很多新的组件，例如：Lifecycle、ViewModel、LiveData、Room 等等
 
-使用这些新的组件可以更好地完成我们之前需要自己去实现的**非业务操作**，例如：管理 Activity 的生命周期（Lifecycle）、视图层和逻辑层的解耦（MVVM，ViewModel + LiveData）、数据库交互（Room）等等
+使用这些新的组件可以更好地完成我们之前需要自己去实现的 **非业务操作**，例如：管理 Activity 的生命周期 (Lifecycle) 、视图层和逻辑层的解耦 (MVVM，ViewModel + LiveData) 、数据库交互 (Room) 等等
 
-我们在实现这些**非业务操作**时，往往都是八仙过海，各显神通，因为没有规范，代码就得不到统一，容易出现冲突的情况。而 jetpack 相当于制定了这样的一种规范
+我们在实现这些 **非业务操作** 时，往往都是八仙过海，各显神通，因为没有规范，代码就得不到统一，容易出现冲突的情况。而 jetpack 相当于制定了这样的一种规范
 
 我认为 jetpack 是一定要使用的，因为这是 Android 将来的大方向；但不是 jetpack 中的每一个组件都要使用，因为就目前而言，jetpack 中的组件大多数都还没有开发完全，仍处于测试的版本
 
@@ -1969,9 +2122,9 @@ MVVM 架构是一种开发模式，而 Jetpack 架构组件是用于实现 MVVM 
 
 ### ViewModel 是怎么做到在 Activity 被销毁重建新实例之后还能保持不变的呢？
 
-当 Activity 被销毁重建后，会重走一遍生命周期函数，从 `onCreate` 函数开始
+当 Activity 被销毁重建后，会重走一遍生命周期函数，从 `onCreate()` 函数开始
 
-通常我们会在 `onCreate` 函数中获取 ViewModel，Google 也是推荐这么做的
+通常我们会在 `onCreate()` 函数中获取 ViewModel，Google 也是推荐这么做的
 
 ```java
 public class MainActivity
@@ -2368,8 +2521,8 @@ Room 对 SQLite 的基本操作进行了抽象，使得操作 SQLite 变得更�
 * OkHttpClient：OkHttp 框架的使用接口，其内部做了大量的复杂逻辑处理，隐藏了整体框架的复杂性（外观设计模式）
 * Request：对于 Http 请求的封装，记录 Http 请求的 URL、请求类型、请求头、请求体等信息
 * Call：对于 Request 的再一层封装，表示 Request 请求已准备好执行。具体实现为 RealCall，其内部处理了分发器和拦截器之间的工作逻辑
-  * Call 的 `execute()` 函数代表了 OkHttp 的同步请求模式，在该模式下 OkHttp 框架会立即执行该请求，阻塞当前执行操作的线程直至返回 Response，**无法并发执行请求（需要外部自行处理并发）**
-  * Call 的 `enqueue(Callback responseCallback)` 函数代表了 OkHttp 的异步请求模式，在该模式下 OkHttp 框架会将该请求提交给其内部维护的线程池来执行，不会阻塞当前执行操作的线程，**可以并发执行请求（无需外部处理并发）**
+  * Call 的 `execute()` 函数代表了 OkHttp 的同步请求模式，在该模式下 OkHttp 框架会立即执行该请求，阻塞当前执行操作的线程直至返回 Response，**无法并发执行请求 (需要外部自行处理并发)**
+  * Call 的 `enqueue(Callback responseCallback)` 函数代表了 OkHttp 的异步请求模式，在该模式下 OkHttp 框架会将该请求提交给其内部维护的线程池来执行，不会阻塞当前执行操作的线程，**可以并发执行请求 (无需外部处理并发)**
 
 请求总体流程如下图：
 
@@ -2377,7 +2530,7 @@ Room 对 SQLite 的基本操作进行了抽象，使得操作 SQLite 变得更�
 
 ###  讲解一下 OkHttp 中的分发器？
 
-Dispatcher（分发器）用于调配请求任务，其内部维护了一个线程池，用于 OkHttp 的异步请求模式。我们可以在构建 OkHttpClient 时，通过传递我们自己创建的 Dispatcher 对象来自定义线程池
+Dispatcher (分发器) 用于调配请求任务，其内部维护了一个线程池，用于 OkHttp 的异步请求模式。我们可以在构建 OkHttpClient 时，通过传递我们自己创建的 Dispatcher 对象来自定义线程池
 
 Dispatcher 中定义的成员属性：
 
@@ -2418,15 +2571,19 @@ Dispatcher 对于异步请求的整体工作流程如下图：
 
 ![](https://note.youdao.com/yws/api/personal/file/WEBaa837f19ac776ae18a5e46c59f942d2a?method=download&shareKey=1713e3f5211430728c129104cb7614f6)
 
-Dispatcher 使用了两个阻塞队列（runningAsyncCalls、readyAsyncCalls）来管理异步请求，并使用了线程池来执行异步请求，实现了并发执行异步请求
+Dispatcher 使用了两个阻塞队列 (runningAsyncCalls、readyAsyncCalls) 来管理异步请求，并使用了线程池来执行异步请求，实现了并发执行异步请求
 
 runningAsyncCalls 和 readyAsyncCalls 主要用于记录所有提交的异步请求，基于发送请求的客户端和接受请求的服务端两者的性能考虑，并不是所有提交的异步请求都能被放入 runningAsyncCalls 立即被提交给线程池执行
 
-只有**当 runningAsyncCalls 的大小没有超过 maxRequests（64）且 runningAsyncCalls 中与当前请求域名相同的请求数量没有超过 maxRequestsPerHost（5）**时，异步请求才能被放入 runningAsyncCalls 立即执行；否则异步请求被放入 readyAsyncCalls 中等待执行
+只有 **当 runningAsyncCalls 的大小没有超过 maxRequests (64) 且 runningAsyncCalls 中与当前请求域名相同的请求数量没有超过 maxRequestsPerHost (5)** 时，异步请求才能被放入 runningAsyncCalls 立即执行；否则异步请求被放入 readyAsyncCalls 中等待执行
 
-对于 runningAsyncCalls 的大小不能超过 maxRequests 的限制，**是基于客户端性能考虑的**，runningAsyncCalls 中有多少个异步请求，就意味着 APP 进程需要开启多少个线程去执行请求；一个 APP 进程所能开启的线程数量是有限的，开启的线程太多会导致占用大量应用进程资源，造成 APP 运行卡顿甚至崩溃。OkHttp 基于各大浏览器的内核源码，综合确定了 maxRequests = 64
+对于 runningAsyncCalls 的大小不能超过 maxRequests 的限制，**是基于客户端性能考虑的**，runningAsyncCalls 中有多少个异步请求，就意味着 APP 进程需要开启多少个线程去执行请求；一个 APP 进程所能开启的线程数量是有限的，开启的线程太多会导致占用大量应用进程资源，造成 APP 运行卡顿甚至崩溃
 
-对于 runningAsyncCalls 中与当前请求域名相同的请求数量不能超过 maxRequestsPerHost 的限制，**是基于服务端性能考虑的**，通常一个服务器拥有多个端口，我们的应用只占用了其中一个端口来发送请求；对于服务器而言，如果仅仅是一个端口就同时收到数十个请求，那么服务器肯定会因为资源紧张而崩溃的。OkHttp 基于市面上常见服务器的性能指标，综合确定了 maxRequestsPerHost = 5
+OkHttp 基于各大浏览器的内核源码，综合确定了 maxRequests = 64
+
+对于 runningAsyncCalls 中与当前请求域名相同的请求数量不能超过 maxRequestsPerHost 的限制，**是基于服务端性能考虑的**，通常一个服务器拥有多个端口，我们的应用只占用了其中一个端口来发送请求；对于服务器而言，如果仅仅是一个端口就同时收到数十个请求，那么服务器肯定会因为资源紧张而崩溃的
+
+OkHttp 基于市面上常见服务器的性能指标，综合确定了 maxRequestsPerHost = 5
 
 ##### 最大并发线程池
 
@@ -2469,15 +2626,15 @@ SynchronousQueue 是一个不存储元素的阻塞队列，因此最大线程数
 
 Dispatcher 通过这样的参数设置得到了最大并发线程池，但是该线程池的最大并发数是无上限的，新建线程过多可能会导致我们的 APP 应用出现 OOM
 
-由于每一个任务被放入 runningAsyncCalls 后会立即被提交给线程池执行，所以 OkHttp 在任务提交时添加了一个限制：runningAsyncCalls 的大小不能超过 maxRequests（64），这样既解决了这个问题同时也获得了最大并发
+由于每一个任务被放入 runningAsyncCalls 后会立即被提交给线程池执行，所以 OkHttp 在任务提交时添加了一个限制：runningAsyncCalls 的大小不能超过 maxRequests (64)，这样既解决了这个问题同时也获得了最大并发
 
 ###  讲解一下 OkHttp 中的线程池？任务执行的最大并发数？
 
-OkHttp 中会默认创建一个[最大并发线程池](#最大并发线程池)来执行异步请求，当该线程池中没有空闲线程时，对于新提交的任务会立即新建线程来执行，从而做到最大并发
+OkHttp 中会默认创建一个[最大并发线程池](#最大并发线程池) 来执行异步请求，当该线程池中没有空闲线程时，对于新提交的任务会立即新建线程来执行，从而做到最大并发
 
 OkHttp 默认创建的最大并发线程池其最大并发数是没有上限的，但是 APP 应用进程所能创建的线程数量是有限的
 
-由于每一个任务被放入 runningAsyncCalls 后会立即被提交给线程池执行，所以 OkHttp 在任务提交时添加了一个限制：runningAsyncCalls 的大小不能超过 maxRequests（64），这样既解决了这个问题同时也获得了最大并发
+由于每一个任务被放入 runningAsyncCalls 后会立即被提交给线程池执行，所以 OkHttp 在任务提交时添加了一个限制：runningAsyncCalls 的大小不能超过 maxRequests (64)，这样既解决了这个问题同时也获得了最大并发
 
 ### 为什么 OkHttp 限制对于每个 Host 至多只能有五个请求？
 
@@ -2497,9 +2654,9 @@ OkHttp 提供了一个闲置任务的功能，这个闲置任务会在所有已�
 
 ### 拦截器和责任链思想？
 
-请求经过 Dispatcher 分发后，Dispatcher 会执行 `RealCall#getResponseWithInterceptorChain()` 函数，将请求移交给责任链处理
+请求经过 Dispatcher 分发后，Dispatcher 会执行 `RealCall.getResponseWithInterceptorChain()` 函数，将请求移交给责任链处理
 
-责任链思想的核心是**解决一个流程中的先后执行关系**，例如发送 Http 请求的流程，OkHttp 通过责任链将拦截器代码与流程代码进行解耦，代码结构变得更加清晰，拦截器之间的先后执行关系更加明了
+责任链思想的核心是 **解决一个流程中的先后执行关系**，例如发送 Http 请求的流程，OkHttp 通过责任链将拦截器代码与流程代码进行解耦，代码结构变得更加清晰，拦截器之间的先后执行关系更加明了
 
 OkHttp 责任链的整体流程如下图：
 
@@ -2510,11 +2667,11 @@ OkHttp 中有五大默认拦截器：
 * RetryAndFollowUpInterceptor：判断是否需要重试与重定向
   * 重试与重定向执行的前提是出现 RouteException 或 IOException 这两类异常，否则不会发生重试与重定向
 * BridgeInterceptor：添加或删除 Request 的相关头部信息，使 Request 符合网络请求规范，能够进行网络请求
-* CacheInterceptor：发起请求前查询缓存，根据缓存策略判断缓存是否可用（仅对于 GET 请求）
+* CacheInterceptor：发起请求前查询缓存，根据缓存策略判断缓存是否可用 (仅对于 GET 请求)
   * 如果缓存可用，直接返回缓存中的 response 结果，中断责任链
   * 如果缓存不可用，将请求移交给下一个拦截器执行，并在 response 返回后进行缓存
 * ConnectInterceptor ：与服务器完成 Socket 连接
-* CallServerInterceptor：与服务器通信，发送请求，封装请求数据与解析响应数据（如：HTTP 报文等）
+* CallServerInterceptor：与服务器通信，发送请求，封装请求数据与解析响应数据 (如：HTTP 报文等)
 
 ##  性能优化
 
@@ -2522,9 +2679,11 @@ OkHttp 中有五大默认拦截器：
 
 大多数用户感知到的卡顿等性能问题的最主要根源都是因为 **渲染卡顿**
 
-Android 系统每隔大概 16.6 ms 发出 VSYNC（垂直同步）信号，触发对于 UI 的渲染，如果每次渲染都成功，这样就能够达到流畅画面所需要的 60 fps
+Android 系统每隔大概 16.6 ms 发出 VSYNC (垂直同步) 信号，触发对于 UI 的渲染，如果每次渲染都成功，这样就能够达到流畅画面所需要的 60 fps
 
-一旦程序的每帧运行时间超出了 16 ms，也就是帧率低于 60 fps，我们称之为丢帧现象。出现丢帧现象，就会造成肉眼可见的卡顿
+一旦程序的每帧运行时间超出了 16 ms，也就是帧率低于 60 fps，我们称之为丢帧现象
+
+出现丢帧现象，就会造成肉眼可见的卡顿
 
 #### Systrace
 
@@ -2566,7 +2725,7 @@ python systrace.py -t 5 -o \路径\a.html gfx input view am dalvik sched wm disk
 
 如果只是单独存在一个红色或者黄色的都是没关系的。关键是连续的红 / 黄色或者两帧间隔非常大那就需要我们去仔细观察
 
-在 UIThread（主线程）上面有一条很细的线，表示线程状态
+在 UIThread (主线程) 上面有一条很细的线，表示线程状态
 
 Systrace 会用不同的颜色来标识不同的线程状态，在每个函数上面都会有对应的线程状态来标识目前线程所处的状态
 
@@ -2690,7 +2849,7 @@ public class ChoreographerHelper
 
 * 布局层级优化
 * 减少过度渲染
-* 布局加载优化（异步加载）
+* 布局加载优化 (异步加载)
 
 #### 布局层级优化
 
@@ -2815,7 +2974,7 @@ new AsyncLayoutInflater(this)
 
 * 使用异步 inflate，那么需要保证这个布局中 parent 的 generateLayoutParams 函数是线程安全的
 
-* 所有构建的 view 中必须不能创建 Handler 或者是调用 `Looper#myLooper` 函数（因为是在异步线程中加载的，异步线程默认没有调用 `Looper#prepare` 函数进行初始化）
+* 所有构建的 view 中必须不能创建 Handler 或者是调用 `Looper.myLooper()` 函数（因为是在异步线程中加载的，异步线程默认没有调用 `Looper.prepare()` 函数进行初始化）
 
 * 不支持设置 LayoutInflater.Factory 或 LayoutInflater.Factory2
 
@@ -3064,7 +3223,7 @@ log LOCAL_EXPORT_LDLIBS := -llog
 include $(BUILD_STATIC_LIBRARY)
 ```
 
-对照 Android.mk 文件，我们在自己项目的 cpp（工程中 C / C++ 源码）目录下创建 breakpad 目录，并将下载 
+对照 Android.mk 文件，我们在自己项目的 cpp (工程中 C / C++ 源码) 目录下创建 breakpad 目录，并将下载 
 
 的 breakpad 源码根目录下的 src 目录全部复制到新建的 breakpad 目录下
 
@@ -3376,11 +3535,11 @@ hprof-conv heap-original.hprof heap-converted.hprof
 GC Roots 包括：
 
 * 作用域为函数内部的局部变量所引用的对象
-* 被 static 修饰的变量（静态变量）所引用的对象
-* 被 final 修饰的变量（常量）所引用的对象
+* 被 static 修饰的变量 (静态变量) 所引用的对象
+* 被 final 修饰的变量 (常量) 所引用的对象
 * native 函数中所引用的对象
 
-我们可以通过右键点击想要查看的对象，选择 Merge hortet Paths to GC Roots > exclude all phantom/weak/soft etc. references（如图示）
+我们可以通过右键点击想要查看的对象，选择 Merge hortet Paths to GC Roots > exclude all phantom/weak/soft etc. references (如下图示)
 
 ![](https://note.youdao.com/yws/api/personal/file/571A71180B694CBDB605E860ED5495B7?method=download&shareKey=5ea60b50337c13940bee001364fd62fd)
 
@@ -3446,7 +3605,7 @@ KOOM (Kwai OOM，Kill OOM) 是快手性能优化团队在处理移动端 OOM 问
 - 图片质量分级
 - 为低性能设备设计简版应用
 
-Facebook 开发了一个 [Device Year Class](https://github.com/facebookarchive/device-year-class)（设备年份类库），它使用简单的算法将设备的 RAM、CPU 内核和时钟速度与这些特性被认为是高端的年份相匹配，使得我们能够根据手机的硬件功能编写不同的逻辑
+Facebook 开发了一个 [Device Year Class](https://github.com/facebookarchive/device-year-class) (设备年份类库)，它使用简单的算法将设备的 RAM、CPU 内核和时钟速度与这些特性被认为是高端的年份相匹配，使得我们能够根据手机的硬件功能编写不同的逻辑
 
 通过 Gradle 将库引用到项目中
 
@@ -3476,9 +3635,9 @@ else
 
 对于 Bitmap 的优化主要分为以下几种：
 
-* 针对不同密度的设备合理的分配资源（合理分配 drawable 目录）
-* 压缩（尺寸压缩、质量压缩）
-* 缓存（内存缓存、磁盘缓存）
+* 针对不同密度的设备合理的分配资源 (合理分配 drawable 目录)
+* 压缩 (尺寸压缩、质量压缩)
+* 缓存 (内存缓存、磁盘缓存)
 
 ##### 合理分配 drawable 目录
 
@@ -3563,14 +3722,14 @@ public static Bitmap decodeSampledBitmapFromResource(Resources res, int resId,
 
 直至 API 29，将像素点分为六个等级：
 
-| Bitmap.Config  | 占用字节大小（btye） | 说明                                                         |
-| -------------- | -------------------- | ------------------------------------------------------------ |
-| ALPHA_8（1）   | 1                    | 单透明通道，不存储颜色信息                                   |
-| RGB_565（3）   | 2                    | 简易 RGB 色调，仅存储 RGB 通道，如果对 Bitmap 色彩没有高要求，可以使用该设置 |
-| ARGB_4444（4） | 4                    | 已废弃                                                       |
-| ARGB_8888（5） | 4                    | 24位真彩色，保持高质量的色彩保真度，默认使用该设置           |
-| RGBA_F16（6）  | 8                    | Android 8.0 新增（更丰富的色彩表现），适合宽色域和 HDR       |
-| HARDWARE（7）  | --                   | Android 8.0 新增，一种特殊设置，减少了内存占用同时也加快了 Bitmap 的绘制 |
+| Bitmap.Config  | 占用字节大小 |                             说明                             |
+| :------------: | :----------: | :----------------------------------------------------------: |
+|  ALPHA_8（1）  |      1       |                  单透明通道，不存储颜色信息                  |
+|  RGB_565（3）  |      2       | 简易 RGB 色调，仅存储 RGB 通道，如果对 Bitmap 色彩没有高要求，可以使用该设置 |
+| ARGB_4444（4） |      4       |                            已废弃                            |
+| ARGB_8888（5） |      4       |      24位真彩色，保持高质量的色彩保真度，默认使用该设置      |
+| RGBA_F16（6）  |      8       |    Android 8.0 新增 (更丰富的色彩表现)，适合宽色域和 HDR     |
+| HARDWARE（7）  |      --      | Android 8.0 新增，一种特殊设置，减少了内存占用同时也加快了 Bitmap 的绘制 |
 
 每个设置所对应每个像素所占用的字节也都不一样，所存储的色彩信息也不同
 
@@ -3623,7 +3782,7 @@ Android 开发者官网也给我们提供了两种缓存的 [实现方案](https
 
 ### ANR 产生的条件是什么？ANR 类型有哪些？
 
-- KeyDispatchTimeout：输入事件（触摸事件等）在 5s 内没有被处理完成
+- KeyDispatchTimeout：输入事件 (触摸事件等) 在 5s 内没有被处理完成
   - 对于 KeyDispatchTimeout 类型来说，即便某次事件执行时间超过 5s 时长，但只要用户后续没有再生成输入事件，则不会触发 ANR
 - BroadcastTimeout： 
   - 前台 Broadcast：onReceiver 函数在 10s 内没有执行结束
@@ -3761,7 +3920,7 @@ DALVIK THREADS (14):（当前进程总14个线程）
 * HZ：时钟频率
 * stack：线程栈的地址区间
 * stackSize：线程栈的大小
-* mutexes：所持有 mutex（锁）的类型，有独占锁 exclusive 和共享锁 shared 两类，为空就是没有持有锁
+* mutexes：所持有 mutex (锁) 的类型，有独占锁 exclusive 和共享锁 shared 两类，为空就是没有持有锁
 
 从上面的线程调用栈中，我们可以查看到是由于在 MainActivity 的点击事件回调中对主线程进行了睡眠，导致了我们的进程 com.chenjimou.anrtestdemo 发生了 ANR
 
@@ -3857,7 +4016,7 @@ Android WatchDog 的工作流程如下图
 
 ![](https://note.youdao.com/yws/api/personal/file/3A539195C0644A6D804E588A23FD1E6E?method=download&shareKey=acddc0aba383bef0cccb4b4e55de5a4d)
 
-Android WatchDog 利用了 MessageQueue 处理耗时任务时会被阻塞的特点，周期性地在所要监听线程的 MessageQueue 中插入（插入到 MessageQueue 的最前方，保证其优先执行）一个用于检测的 Runnable，根据 Runnable 是否在规定时间内执行完成来判断所监听的线程是否卡顿、发生 ANR
+Android WatchDog 利用了 MessageQueue 处理耗时任务时会被阻塞的特点，周期性地在所要监听线程的 MessageQueue 中插入 (插入到 MessageQueue 的最前方，保证其优先执行) 一个用于检测的 Runnable，根据 Runnable 是否在规定时间内执行完成来判断所监听的线程是否卡顿、发生 ANR
 
 根据这个思路我们可以自己定义一个 WatchDog 用来监控 ANR
 
