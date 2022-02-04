@@ -241,21 +241,23 @@ AIDL 的底层实现原理是 Binder 机制
 
 ### Activity 和 Service 有什么区别 (Service 存在的意义是什么) ？
 
+基于 C / S 架构思维，Activity 就是客户端 (Client)，负责展示界面、与用户交互
 
+Service 就是服务端，负责接收 Activity 的指令，在后台运行代码，并返回结果给 Activity
+
+Service 可以理解为是无界面关联纯逻辑的 Activity
+
+[关于android编程中service和activity的区别](https://blog.csdn.net/foreverhuylee/article/details/20372055)
 
 ### startService 与 bindService 的区别？生命周期？应用场景？
 
 
 
+### 多个 Activity 绑定同一个 Service 和单个 Activity 绑定一个 Service 有什么差别？
+
+
+
 ### Activity 与 Service 之间如何通信？
-
-
-
-### Service 如何保活？
-
-
-
-### 当内存不足时 Service 被杀死了，如何重启这个 Service？
 
 
 
@@ -264,6 +266,14 @@ AIDL 的底层实现原理是 Binder 机制
 
 
 ### Service 和 Thread 都可以用来执行后台任务，为什么选 Serice 而不选 Thread (Service 与 Thread 的区别) ？
+
+
+
+### Service 如何保活？
+
+
+
+### 当内存不足时 Service 被杀死了，如何重启这个 Service？
 
 
 
