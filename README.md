@@ -251,7 +251,41 @@ Service 可以理解为是无界面关联纯逻辑的 Activity
 
 ### startService 与 bindService 的区别？生命周期？应用场景？
 
+* 通过 startService 启动的 Service 生命周期为：
 
+  `onCreate()` --> `onStartCommand()` --> `onDestory()`
+
+  多次调用 startService 时，`onCreate()` 函数不重复执行，但 `onStartCommand()` 函数会多次执行
+
+  通过 startService 启动的 Service 会独立在后台运行，不受 Activity 的影响，只有当 stopService 被调用 / 被系统回收时 Service 才会停止运行
+
+  当 Service 独立在后台运行时，会提高 APP 进程的优先级，导致正常退出应用程序可能无法销毁 APP 进程 (强行杀死进程不算正常退出应用程序)
+
+  当应用程序正常退出后，Service 在后台的运行时间一般不超过 80 s
+
+* 通过 bindService 启动的 Service 生命周期为：
+
+  `onCreate()` --> `onBind()` --> `onUnbind()` --> `onDestory()`
+
+  多次调用 bindService 时，`onCreate()` 函数和 `onBind()` 函数不重复执行，但 `ServiceConnection.onServiceConnected()` 函数会多次执行
+
+  通过 bindService 启动的 Service 生命周期由开发者控制，一般跟随 Activity 生命周期；当 Service 没有绑定时，系统会回收该 Service
+
+  Activity 可以通过 ServiceConnection 获取到 Service 的 Binder 通信接口 (onBind 的返回值)，通过此接口 Activity 可以调用定义在 Service 内部的函数，从而实现 Activity 与 Service 间的交互
+
+  通过 bindService 启动 Service 时，如果目标 Service 已在运行中且与 APP 进程进行过绑定，则不会执行 `onBind()` 函数，而是执行 `onReBind()` 函数 (前提：前一次 Service 解绑时 `onUnbind()` 函数返回 true)
+
+可以同时通过 startService 和 bindService 启动同一个 Service，无先后之分，目标 Service 的 `onCreate()` 函数只会执行一次
+
+关闭该 Service 时需要调用 stopService 和 unbindService，也无先后之分，目标 Service 的 `onDestroy()` 函数也只会执行一次
+
+但如果只调用 stopService / unbindService 其中一个来关闭 Service，不论是调用哪个，Service 的 `onDestroy()` 函数都不会被执行，Service 也不会被关闭
+
+如果想要在后台长期进行某项任务，那么可以使用 startService
+
+如果想要 Service 伴随 Activity 生命周期，那么可以使用 bindService
+
+如果想要在后台长期进行某项任务，且这个过程中需要与调用者 (Activity) 进行交互，那么可以两者同时使用，或者使用 startService + BoardCast / EventBus 等方式
 
 ### 多个 Activity 绑定同一个 Service 和单个 Activity 绑定一个 Service 有什么差别？
 
@@ -493,9 +527,9 @@ Handler 的同步屏障机制是基于一种 target 字段为 null 的 message �
 
 ### 什么是事件分发？
 
-事件分发是将屏幕触控信息分发给 view 树的一个套机制。
+事件分发是将屏幕触控信息分发给 view 树的一个套机制
 
-当我们触摸屏幕时，会产生一系列的 MotionEvent 事件对象，经过 view 树的管理者 ViewRootImpl，调用 view 树中根 view 的 `dispatchPointerEvnet()` 函数分发事件。
+当我们触摸屏幕时，会产生一系列的 MotionEvent 事件对象，经过 view 树的管理者 ViewRootImpl，调用 view 树中根 view 的 `dispatchPointerEvnet()` 函数分发事件
 
 ### 简单介绍一下事件分发的流程？
 
