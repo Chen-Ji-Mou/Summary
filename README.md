@@ -289,27 +289,53 @@ Service 可以理解为是无界面关联纯逻辑的 Activity
 
 ### 多个 Activity 绑定同一个 Service 和单个 Activity 绑定一个 Service 有什么差别？
 
+当 Activity 与 Service 一对一绑定时，在 Activity 中调用 unbindService 解绑该 Service，该 Service 会被关闭，并回调 `onUnbind()` 函数和 `onDestroy()` 函数
 
+当多个 Activity 绑定同一个 Service 时，只有当绑定在该 Service 上的所有 Activity 都调用 unbindService 解绑，该 Service 才能被关闭，并回调 `onUnbind()` 函数和 `onDestroy()` 函数
 
 ### Activity 与 Service 之间如何通信？
 
+Activity 可以通过 bindService 启动 Service
 
+Service 启动成功后，Activity 可以通过 ServiceConnection 获取到 Service 的 Binder 通信接口 (onBind 的返回值)
+
+通过此接口 Activity 可以调用定义在 Service 内部的函数，从而实现 Activity 与 Service 间的交互
 
 ### Service 与 IntentService 的区别？
 
+Service 是运行在主线程中的，因此耗时操作 (例如访问网络、文件等) 是不能直接在 Service 中执行的
 
+IntentService 继承自 Service，为了弥补普通 Service 无法执行耗时操作的缺陷，IntentService 在实现时使用了 HandlerThread 来执行 Activity 所传入的 intent
+
+HandlerThread 本质上是一个线程，其在运行时初始化了 Looper，使得开发者可以通过 Handler 去操控 HandlerThread 执行耗时任务
+
+当多次调用 startService 时，Service 的 `onStartCommand()` 函数会多次执行
+
+因此 IntentService 在实现 `onStartCommand()` 函数时，将每次 Activity 所传入的 intent 封装成 message，并把 message 交给 Handler 执行
+
+当 message 被 HandlerThread 中的 Looper 取出执行时，就会回调 IntentService 的 `onHandleIntent()` 函数，将 intent 交给开发者处理
+
+因此 IntentService 可以按顺序依次执行多个耗时任务 (通过 startService 传入 intent)
 
 ### Service 和 Thread 都可以用来执行后台任务，为什么选 Serice 而不选 Thread (Service 与 Thread 的区别) ？
 
+Service 是用于执行后台操作的，Thread 是用于执行耗时操作的，但后台操作并不完全等于耗时操作
 
+在 Android 中，后台操作是指不依赖于 UI 界面的操作；耗时操作是后台操作的一种类型，由于其会阻塞线程所以需要通过子线程来执行，但不是所有的后台操作都是耗时操作
 
-### Service 如何保活？
+但在实际业务中，绝大多数的后台操作都是耗时操作，这就意味着通常 Service 需要通过子线程来执行后台操作
 
+既然在 Service 里也要创建子线程，那为什么不直接在 Activity 里创建呢？
 
+这是因为 Activity 很难对 Thread 进行控制，当 Activity 被销毁后，就没有其它的任何方法可以再重新获取到之前创建的子线程实例
 
-### 当内存不足时 Service 被杀死了，如何重启这个 Service？
+并且在一个 Activity 中创建的子线程，另一个 Activity 无法对其进行操作
 
+但 Service 就不同了，所有的 Activity 都可以与 Service 进行绑定 (bindService)，然后 Activity 就可以通过 Service 的 Binder 通信接口调用定义在 Service 内部的函数
 
+即使 Activity 被销毁了，只要重新与 Service 进行绑定，就又能够获取到 Service 的 Binder 通信接口
+
+因此，使用 Service 来执行后台操作，就完全不需要担心无法对后台操作进行控制的情况
 
 ## ContentProvider
 
