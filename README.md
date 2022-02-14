@@ -423,7 +423,7 @@ ContentProvider 会自动根据访问方输入的 Uri 进行匹配 (UriMatcher)�
 
   ContentProvider 会自动根据访问方输入的 Uri 进行匹配 (UriMatcher)，返回对应的数据
 
-### ContentProvider 保证线程安全吗？应该如何做？
+### ContentProvider 保证线程安全吗？如何解决？
 
 ContentProvider 不保证线程安全
 
@@ -831,7 +831,7 @@ DOWN 事件的处理逻辑如下图所示：
 
 可以通过调用 `LayoutInflater.inflate()` 函数传入对应的 xml 文件资源 id 来加载对应的 xml 布局
 
-在 `LayoutInflater.inflate()` 函数中，会先调用 `LayoutInflater.createViewFromTag()` 函数将 xml 文件中的根标签解析
+在 `LayoutInflater.inflate()` 函数中，会先调用 `LayoutInflater.createViewFromTag()` 函数解析 xml 文件中的根标签
 
 `LayoutInflater.inflate()` 函数运行逻辑如下图：
 
@@ -843,17 +843,27 @@ DOWN 事件的处理逻辑如下图所示：
 
 ![](https://note.youdao.com/yws/api/personal/file/0CB1914B27A84321AEBB7A68973CAEA3?method=download&shareKey=810a2fe6ae90f6923bdf00fac75c7198)
 
-最终返回整个解析 xml 文件得到的 view 树
+最终返回整个解析 xml 文件得到的视图树
 
-### Activity 中的视图是在什么时候可见的？
+### Activity 中的视图是在什么时候可见的 (View 的第一次绘制是怎么调到的) ？
 
 根据 Activity 启动流程，最终启动的 Activity 会回调 `ActivityThread.handleResumeActivity()` 函数
 
-在 `ActivityThread.handleResumeActivity()` 函数中，会通过 `WindowManager.addView()` 函数将 Activity 的 DecorView 添加到窗口中
+在 `ActivityThread.handleResumeActivity()` 函数中，会调用 `WindowManager.addView()` 函数将 Activity 的 DecorView 添加到窗口中
 
 最终会调用到 `ViewRootImpl.requestLayout()` 函数执行 view 树的绘制流程
 
-绘制流程结束后，Activity 中的视图才真正可见了
+绘制流程结束后，Activity 中的视图才真正可见
+
+### View 的 onMeasure、onLayout、onDraw 都分别用来干什么？
+
+onMeasure 用于确定 View 本身的所占空间和大小 (长宽)
+
+onLayout 用于确定 View 在其父 View 中的具体位置并根据具体需求调整 View 的最终绘制大小
+
+onDraw 用于将 View 在 Canvas 上绘制出来
+
+一般情况下，在 onMeasure 中确定的 View 的大小就等同于最终绘制大小
 
 ### Window、Activity、PhoneWindow、ViewRootImpl、DecorView 之间的关系？
 
@@ -861,13 +871,13 @@ DOWN 事件的处理逻辑如下图所示：
 
 ![](https://note.youdao.com/yws/api/personal/file/B25B188BE14D4B1998316FC134BA5B8D?method=download&shareKey=21f3a1f083ae2b7c4c70fa3bcde2285b)
 
-在 Android 中 window 是一个抽象的概念，本身并不存在，可以理解为一个 view 树就是一个 window
+在 Android 中 window 是一个抽象的概念，本身并不存在，可以理解为一个视图树就是一个 window
 
-所有的 window 都由系统服务 wms 管理，window 在 wms 中的存在形式是 windowStatus，每一个 windowStatus 会对应着一个 ViewRootImpl，每一个 ViewRootImpl 对应着管理一个 view 树
+所有的 window 都由系统服务 wms 管理，window 在 wms 中的存在形式是 windowStatus，每一个 windowStatus 会对应着一个 ViewRootImpl，每一个 ViewRootImpl 对应着管理一个视图树
 
-Activity 持有了 PhoneWindow，PhoneWindow 持有了 DecorView 和一些 window 的属性参数，DecorView 是 view 树的根
+Activity 持有了 PhoneWindow，PhoneWindow 持有了 DecorView 和一些 window 的属性参数，DecorView 是视图树的根
 
-### 了解 View 的绘制流程吗？
+### View 的绘制流程？
 
 Activity 中 View 的绘制流程是从 `ViewRootImpl.requestLayout()` 函数开始的
 
@@ -891,11 +901,31 @@ Activity 中 View 的绘制流程是从 `ViewRootImpl.requestLayout()` 函数开
 
 Activity 中 View 的绘制流程是在 `onResume()` 函数回调之后才开始的，因此在 `onResume()` 函数回调时 Activity 中的视图仍未被绘制出来
 
-### View 的生命周期你知道吗？
+### invalidate 和 requestlayout 的区别？
+
+requestlayout 会重新执行整个视图树的绘制流程 (onMeasure、onLayout、onDraw)
+
+而 invalidate 只会重新执行整个视图树的 onDraw
+
+### requestlayout 的作用范围是多大？
+
+requestlayout 会重新执行整个视图树的绘制流程，而不仅仅局限于某个子 View
+
+同理，invalidate 也是如此 (重新执行整个视图树的 onDraw)
+
+### View 的生命周期？
 
 整体生命周期如下图所示：
 
 ![](https://note.youdao.com/yws/api/personal/file/AB1103D66EE24C9DAEF5C367333EFAB3?method=download&shareKey=4964945fcf9ca7aa3dab3a849441f2f5)
+
+### 为什么 View.post 可以获取到 View 的宽高？
+
+View.post
+
+### 子线程一定不能更新 UI 吗？为什么？
+
+
 
 ## 图片加载
 
@@ -4215,11 +4245,23 @@ public class ANRWatchDog extends Thread
 
 ## 集合框架
 
-###  HashMap。hash算法、冲突解决方案、扩容方案、红黑树的优缺点
+### HashMap 是如何解决哈希碰撞的？
 
 
 
-###  HashSet
+###  HashMap 的扩容机制？
+
+
+
+### HashMap 线程不安全的原因？如何解决？
+
+
+
+### 如果想从 HashMap 中以某个顺序取出数据，该如何操作？
+
+
+
+### HashMap 与 HashSet 的区别？
 
 
 
