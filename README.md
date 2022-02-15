@@ -449,7 +449,7 @@ Handler 可以创建无数个，Handler 对于用户发送消息操作进行了�
 
 每个线程会在自己 ThreadLocalMap 中保存与自己绑定的 looper 对象引用，Key 是 Looper.sThreadLocal 这个字段
 
-这个字段是 static final 的，所以每个线程只会保存一个looper对象引用
+这个字段是 static final 的，所以每个线程只会保存一个 looper 对象引用
 
 当调用 `Looper.prepare()` 函数创建 looper 对象的时候，会先确定当前线程是否已经保存了一个 looper 对象引用；如果已经保存过了，说明是二次创建，抛出异常
 
@@ -459,14 +459,14 @@ Handler 内存泄漏原因是由于 **Handler 可以设置延时消息** 和 **M
 
 一般 Handler 对象的存活是跟着四大组件的生命周期的，但是由于 **Handler 可以设置延时消息**，有可能导致当组件的生命周期结束的时候，Message 还没有被处理
 
-这时由于 **Message 持有了 Handler 对象**，如果 Handler 对象中又调用了定义在组件中的函数，就会导致 Handler 对象持有了组件对象（Java语法，内部类调用外部类函数会持有外部类对象），此时就会导致 GC 无法将组件对象进行回收，造成 **内存泄露**
+这时由于 **Message 持有了 Handler 对象**，如果 Handler 对象中又调用了定义在组件中的函数，就会导致 Handler 对象持有了组件对象 (Java语法，内部类调用外部类函数会持有外部类对象)，此时就会导致 GC 无法将组件对象进行回收，造成 **内存泄露**
 
 我们平时使用的内部类虽然也会持有外部类对象，但是这些内部类的存活是跟着组件的生命周期；当组件生命周期结束后，组件对象和内部类对象会被一起回收，因此不会造成 **内存泄漏**
 
 解决该问题的最有效的方法是：**将 Handler 定义成静态的内部类，在内部持有组件的弱引用**
 
 ```java
-public class SafeHandler extends Handler
+public static class SafeHandler extends Handler
 {
     final WeakReference<Context> mContext;
 
@@ -921,11 +921,35 @@ requestlayout 会重新执行整个视图树的绘制流程，而不仅仅局限
 
 ### 为什么 View.post 可以获取到 View 的宽高？
 
-View.post
+View.post 首先会判断当前整个视图树的绘制是否完成 (判断 mAttachInfo 字段是否为空)
 
-### 子线程一定不能更新 UI 吗？为什么？
+如果当前整个视图树的绘制还未开始，就将所要执行的 Runnable 先缓存起来 (HandlerActionQueue)，等待绘制流程结束后再执行此 Runnable
 
+当绘制流程执行 (执行 `performTraversals()` 函数) 时，会将缓存在 HandlerActionQueue 中的 Runnable 添加到主线程的 MessageQueue 中等待执行，并赋值 mAttachInfo 字段
 
+(此时主线程的 Looper 正在执行 `performTraversals()` 函数，因此缓存在 HandlerActionQueue 中的 Runnable 一定是在绘制流程结束后才会被执行)
+
+由于 View.post 传入的 Runnable 在绘制流程结束后才会被执行，因此 View.post 可以获取到 View 的宽高
+
+[View.post为什么可以拿到View的宽高？](https://juejin.cn/post/6844903842782380045)
+
+### 在子线程中一定不能更新 UI 吗？为什么？
+
+不一定
+
+首先主线程更新 UI 的报错是在 `ViewRootImpl.checkThread()` 函数中触发的，只要此函数不被执行，那么主线程更新 UI 是不会报错的
+
+当 requestLayout 被执行时，`ViewRootImpl.checkThread()` 函数会被执行
+
+当 invalidate 被执行时，如果 APP 没有开启硬件加速，`ViewRootImpl.checkThread()` 函数会被执行
+
+> 冷知识：target API 级别为 14 及更高级别，则硬件加速默认处于启用状态
+
+因此在绘制流程开始执行前，是可以在子线程中更新 UI 的
+
+所以就有在 Activity 的 `onCreate()` 函数中通过子线程更新 UI 不会报错的情况出现，因为 Activity 的 `onCreate()` 函数被回调时，ViewRootImpl 还未完成实例化，`ViewRootImpl.checkThread()` 函数不会被执行
+
+[这次彻底搞明白子线程到底能不能更新 UI](https://juejin.cn/post/6915034015544115214)
 
 ## 图片加载
 
