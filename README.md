@@ -4267,39 +4267,190 @@ public class ANRWatchDog extends Thread
 
 # Java
 
-## 集合框架
+[重温数据结构：哈希 哈希函数 哈希表](https://blog.csdn.net/u011240877/article/details/52940469)
 
-### HashMap 是如何解决哈希碰撞的？
+[面试旧敌之 HashMap ：主要特点和关键方法源码解读](https://juejin.cn/post/6844903454951866375)
 
+## HashMap
 
+### HashMap 的原理？
+
+HashMap 是一个采用哈希表实现的 key-value 键值对集合，其底层实现是数组 + 链表 + 红黑树 (JDK 8 之后新添加)
+
+当调用 get / put 时，会先通过 `hash()` 函数计算 key 所对应的哈希值 (将 key 的 hashCode 进行无符号右移 16 位，再进行按位异或)
+
+再通过哈希值计算 ( `(当前哈希表长度 - 1) & 哈希值` ) 得到目标元素在哈希表中的位置
+
+当发生哈希碰撞 (冲突) 时，HashMap 采用拉链法将所有计算得到同一位置的元素链接成一个单链表 (JDK 7 之前是单链表，JDK 8 之后是单链表 + 红黑树)
+
+在概念上，哈希表中所储存的单链表 / 红黑树称之为哈希桶
+
+### HashMap 为什么会形成环？
+
+因为 HashMap 是线程不安全的
+
+当 HashMap 发生扩容 (哈希表的容量 > 最大容量 * 加载因子) 时，会调用 `resize()` 函数
+
+`resize()` 函数会将原来的哈希表容量和阈值扩大一倍，并将原来的元素重新计算哈希值后再保存
+
+由于 HashMap 线程不安全，在多线程下并发调用 `resize()` 函数时，在将原来的元素重新保存的过程中，就有可能使链表形成一个闭环
+
+当调用 get / put 访问到这个闭环时，就会使运行陷入死循环，严重占用 CPU 资源
+
+[HashMap原理及线程不安全详解](https://my.oschina.net/muziH/blog/1596801)
+
+### HashMap 是如何解决哈希碰撞 (冲突) 的？
+
+当发生哈希碰撞 (冲突) 时，HashMap 采用拉链法将所有计算得到同一位置的元素链接成一个单链表
+
+在 JDK 7 之前哈希桶结构只是单链表
+
+在 JDK 8 之后哈希桶结构采用单链表 + 红黑树
+
+当哈希桶内元素个数小于 8 时，仍采用单链表的结构；当哈希桶内元素个数大于 8 时，则采用红黑树的结构
+
+(当哈希桶内元素个数逐渐增多时，在搜索速度上，单链表比不上红黑树)
 
 ###  HashMap 的扩容机制？
 
+每次调用 put 时，HashMap 会比较当前哈希表的容量是否超出阈值 (最大容量 * 加载因子)
 
+如果超出阈值，就会调用 `resize()` 函数，对哈希表进行扩容
 
-### HashMap 线程不安全的原因？如何解决？
+`resize()` 函数会将原来的哈希表容量和阈值扩大一倍，并将原来的元素重新计算哈希值后再保存
 
+HashMap 的扩容开销会很大，需要遍历所有的元素，重新计算哈希值，再赋值，还得保留原来的数据结构 (如果扩容前哈希桶结构已经变成了红黑树，则扩容后哈希桶结构不会变回单链表，即保留数据结构)
 
+因此在使用 HashMap 时，最好设置一个合理的初始容量，尽量避免频繁出现扩容
 
-### 如果想从 HashMap 中以某个顺序取出数据，该如何操作？
+### 如何解决 HashMap 线程不安全？
 
+* 使用 ConcurrentHashMap
 
+  ```java
+  ConcurrentHashMap<Integer, Integer> chm = new ConcurrentHashMap<>();
+  ```
 
-### HashMap 与 HashSet 的区别？
+* 通过 Collections 封装 HashMap
 
+  ```java
+  HashMap<Integer, Integer> hm = new HashMap<>();
+  Map<Integer, Integer> synchronizedMap = Collections.synchronizedMap(hm);
+  ```
 
+### 使用 HashMap 时，key 重写了 equals 但没有重写 hashcode 会怎么样？
 
-###  ConcurrentHashMap。并发原理、优缺点
+hashcode 默认会根据对象的内存地址生成的一个 int 整数
 
+equals 默认是用来比较对象地址是否相同 (相当于 == 运算符)
 
+在使用 HashMap 时，如果重写了 equals 但没有重写 hashcode，就有可能导致 HashMap 存储重复的元素
 
-###  Hashtable、SychronizeMap。一般和 ConcurrentHashMap 一起问，进行对比
+因为 HashMap 内部会通过比较哈希值、key 和 value 是否相同来判断元素是否相同
 
+如果重写了 equals 但没有重写 hashcode，就有可能导致两个元素比较的时候，key 和 value 都是相同的 (通过 equals 比较)，但是哈希值不同 (通过 hashcode 比较)，因此 HashMap 不会发生替换
 
+这就会导致 HashMap 储存了两个 key 和 value 都是相同的元素，造成重复
 
-### CopyOnWriteArrayList。一般会作为线程安全方法来进行比较优缺点
+## HashSet
 
+### HashSet 和 HashMap 的区别？
 
+* HashSet 实现了 Set 接口，仅存储对象
+
+  HashMap 实现了 Map 接口, 存储的是 key-value 键值对
+
+* HashSet 底层其实通过 HashMap 实现存储的，HashSet 封装了一系列 HashMap 的函数，依靠 HashMap 来存储对象 (通过 key 进行存储，而 value 默认为 Object 对象)
+
+  所以 HashSet 也不允许出现重复，判断标准和 HashMap 判断标准相同 (两个元素的 hashCode 相等且 equals 返回 true)
+
+## HashTable
+
+### HashTable 和 HashMap 的区别？
+
+* HashTable 继承自 Dictionary，HashMap 继承自 AbstractMap，但二者都实现了 Map 接口
+
+* HashTable 线程安全，而 HashMap 线程不安全
+
+  HashTable 几乎可以等价于 HashMap，除了 HashTable 是线程安全的 (其内部使用了 synchronized 锁)
+
+## ConcurrentHashMap
+
+###  ConcurrentHashMap 的分段锁？
+
+在 JDK 1.7 的版本中，ConcurrentHashMap 在内部使用了一个叫做 Segment 的结构
+
+一个 Segment 可以理解为是一个 HashTable，Segment 内部维护了一个链表数组，其整体结构如下图所示：
+
+![](https://itqiankun.oss-cn-beijing.aliyuncs.com/picture/blogArticles/2020-04-16/1587000999.png)
+
+因此 ConcurrentHashMap 定位一个元素需要进行两次 Hash 操作，第一次 Hash 定位到 Segment，第二次 Hash 定位到元素所在的哈希桶
+
+这样带来的好处是进行写操作时可以只对元素所在的 Segment 进行加锁即可，从而不会影响到其他的 Segment
+
+在最理想的情况下，ConcurrentHashMap 最高可以同时支持 Segment 数量大小的写操作，大大提升 ConcurrentHashMap 的并发能力
+
+而在 JDK 1.8 的版本中，ConcurrentHashMap 又再进行了优化，废弃了 Segment 这一结构，直接将数组中的每个元素都作为锁
+
+当调用 put 时，如果哈希桶中没有元素，则直接通过 CAS 操作来插入元素
+
+同时使用 synchronized 来保证并发安全，如果哈希桶中已存在元素，则使用 synchronized 关键字对元素加锁
+
+[ConcurrentHashMap分段加锁机制简析](https://blog.csdn.net/LO_YUN/article/details/106358362)
+
+###  HashMap、Hashtable、ConcurrentHashMap 的区别？
+
+|          |         HashMap         |        HashTable        |    ConcurrentHashMap    |
+| :------: | :---------------------: | :---------------------: | :---------------------: |
+| 底层实现 |  数组 + 链表 + 红黑树   |       数组 + 链表       |  数组 + 链表 + 红黑树   |
+|   空值   | key 和 value 都可以为空 | key 和 value 都不能为空 | key 和 value 都不能为空 |
+| 线程安全 |       线程不安全        |    线程安全，效率低     |    线程安全，效率高     |
+
+## ArrayList
+
+### ArrayList 的原理？
+
+ArrayList 的底层实现是数组，并且是一个定长数组
+
+每次调用 add 时，ArrayList 会判断此次添加是否会造成数组越界
+
+如果会发生数组越界，就会调用 `ensureCapacityInternal()` 函数，对数组进行扩容
+
+`ensureCapacityInternal()` 函数会将原来的数组长度扩大 1.5 倍
+
+但扩容、删除等操作都是有代价的，在一些极端的情况下，ArrayList 会将大量的元素进行移位，影响性能
+
+因此 ArrayList 适用于读多写少的场景
+
+同时 ArrayList 线程不安全，多线程场景下可以使用 CopyOnWriteArrayList
+
+[ArrayList 从源码角度剖析底层原理](https://juejin.cn/post/6986833022427349005)
+
+## LinkedList
+
+### LinkedList 和 ArrayList 的区别？
+
+* ArrayList 基于动态数组实现的非线程安全的集合
+
+  LinkedList 基于链表实现的非线程安全的集合
+
+* 对于随机索引访问的 `get()` 和 `set()` 函数，一般 ArrayList 的性能要优于 LinkedList
+
+  因为 ArrayList 可以直接通过数组下标直接找到元素
+
+  而 LinkedList 需要移动指针遍历每个元素直到找到为止
+
+* 新增和删除元素，一般 LinkedList 的性能要优于 ArrayList
+
+  因为 ArrayList 在新增和删除元素时，可能会对数组进行扩容和复制
+
+  而 LinkedList 除了实例化对象需要时间外，只需要修改指针即可
+
+* LinkedList 不支持随机访问 (RandomAccess)
+
+* ArrayList 的空间浪费主要体现在 list 列表的结尾需要预留一定的容量空间
+
+  而 LinkedList 的空间花费则体现在它的每一个元素都需要消耗相当的空间
 
 ## 访问限制符
 
@@ -4339,25 +4490,80 @@ public class ANRWatchDog extends Thread
 
 ## 线程池
 
-### 内部原理
+### 线程池的工作原理？
 
+![](https://note.youdao.com/yws/api/personal/file/WEB9e14bdcf6385ee1fce9d3f0e160327fe?method=download&shareKey=b5ecf83b5b6a655195db9e4be3fa4740)
 
+### 线程池构造参数的作用？应当如何配置？
 
-### 关键参数作用及如何配置。重点在如何配置，需要结合具体的机器情况、任务情况等等考量。
+* corePoolSize：线程池中的核心线程数
 
+  当提交一个任务时，线程池会创建一个新线程执行任务，直到池中线程数等于 corePoolSize
 
+* maximumPoolSize：线程池中允许的最大线程数
 
-### 线程池的作用。不仅仅只是线程复用，更重要的是管理线程、控制线程数量。这个也比较考察具体的项目运用理解。
+  当提交一个任务时，如果任务等待队列已满且当前没有空闲线程，线程池会创建一个新线程执行任务，直到池中线程数等于 maximumPoolSize
 
+* keepAliveTime：普通线程空闲时的存活时间
 
+  线程池中的线程分为核心线程和普通线程
 
-### 常见的四种线程池
+  当池中线程数 < corePoolSize 时，线程池中的所有线程都是核心线程
 
+  当 corePoolSize < 池中线程数 < maximumPoolSize 时，线程池中的所有线程都是普通线程
 
+* TimeUnit：keepAliveTime 的时间单位
+
+* workQueue：任务等待队列 (阻塞队列)
+
+  当提交一个任务时，如果池中线程数 > corePoolSize 且当前没有空闲线程，任务会进入等待队列
+
+  一般来说，我们应该尽量使用有界队列，因为使用无界队列会导致线程池某些参数无效
+
+  更重要的是，使用无界队列可能会消耗大量的系统资源，这就违背了使用线程池的初衷
+
+* ThreadFactory：创建线程的工厂类
+
+  通过自定义线程工厂可以给每个新建的线程设置一个具有识别度的线程名，当然还可以更加自由的对线程做更多的设置，例如设置新建的线程为守护线程
+
+* RejectedExecutionHandler：线程池的拒绝策略
+
+  当提交一个任务时，如果任务等待队列已满且池中线程数 > maximumPoolSize，线程池会拒绝执行此任务，并通过拒绝策略处理此任务
+
+  线程池提供了四种拒绝策略：
+
+  * AbortPolicy：直接抛出异常 (默认)
+  * CallerRunsPolicy：用调用者所在的线程来执行此任务
+  * DiscardOldestPolicy：丢弃任务等待队列中位于头部的任务，并向线程池重新提交此任务
+  * DiscardPolicy：直接丢弃此任务，即不处理
+
+线程池构造参数的配置需要根据具体业务场景进行分析
+
+例如在 OkHttp 框架中，需要高并发执行 Http 请求
+
+因此 OkHttp 将线程池的 corePoolSize 参数设置为 0，将 maximumPoolSize 设置为 Integer.MAX_VALUE，将 workQueue 设置为 SynchronousQueue
+
+这样 OkHttp 就得到了一个具有最大并发量的线程池
+
+### 线程池的作用？
+
+使用线程池有三个好处：
+
+* 降低资源消耗：通过重复利用已创建的线程来减少线程创建和销毁所造成的资源消耗
+
+* 提高响应速度：当任务到达时，任务可以不需要等到线程创建就能立即执行
+
+* 提高线程的可管理性：线程是稀缺资源，如果无限制地创建，不仅会消耗系统资源，还会降低系统的稳定性
+
+  使用线程池可以进行统一分配、调优和监控线程
 
 ## 并发
 
-### sychronize。必问，java的锁机制。特别是jdk6之后的锁优化以及运用场景。为什么是重量级的、JVM层如何实现如果了解可以加分。
+### synchronized。必问，java的锁机制。特别是jdk6之后的锁优化以及运用场景。为什么是重量级的、JVM层如何实现如果了解可以加分。
+
+
+
+### synchronized 修饰静态函数和修饰非静态函数会有什么区别？
 
 
 
@@ -4365,7 +4571,11 @@ public class ANRWatchDog extends Thread
 
 
 
-### volatile。必问，会拿来和锁比较，他的两个重要作用。更深点会问到cpu缓存一致性协议、以及指令重排的类型与原理。
+### volatile。必问，会拿来和 synchronized 锁比较，他的两个重要作用。更深点会问到cpu缓存一致性协议、以及指令重排的类型与原理。
+
+
+
+### synchronized、Lock、volatile 的区别？
 
 
 
