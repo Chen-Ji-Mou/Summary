@@ -4559,27 +4559,87 @@ ArrayList 的底层实现是数组，并且是一个定长数组
 
 ## 并发
 
-### synchronized。必问，java的锁机制。特别是jdk6之后的锁优化以及运用场景。为什么是重量级的、JVM层如何实现如果了解可以加分。
+### synchronized 的底层原理？
 
+在 JVM 中，每一个对象 (包括 Class 对象) 都关联着一个 Monitor 对象
 
+synchronized 底层是通过 Monitor 对象来实现锁机制的
 
-### synchronized 修饰静态函数和修饰非静态函数会有什么区别？
+当代码运行到 synchronized 关键字时，线程会执行 monitorenter 指令 (JVM 指令) 去获取锁
+
+如果线程可以获取到锁，则将 Monitor 对象中的 owner 字段设置 (CAS 操作) 为当前线程 id (owner 表示持有锁的线程)，并将 Monitor 对象中的 state 字段值加一 (state 表示持有锁的线程获取锁的次数，保证了锁的可重入性)
+
+如果线程没有获取到锁，则进入 Monitor 对象的 EntryList 队列进行等待 (阻塞)
+
+当持有锁的线程退出 synchronized 范围时，会执行 monitorexit 指令 (JVM 指令)，将 Monitor 对象中的 state 字段值减一；如果 state = 0，则释放锁，重置 Monitor 对象中的 owner 字段，并唤醒 EntryList 队列中的线程继续抢夺锁
+
+### synchronized 修饰静态函数和修饰非静态函数有什么区别？
 
 synchronized 修饰静态函数相当于是类锁，锁住的是当前类的 Class 对象
 
 synchronized 修饰非静态函数相当于是对象锁，锁住的是当前类对象自身 (this)
 
-### ReentrantLock 的实现原理？
+### synchronized 修饰代码块和修饰函数有什么区别？
 
+当 synchronized 修饰代码块时，代码经过编译后，编译器会给代码块的前后插入 monitorenter 和 monitorexit 指令，进行锁的获取和释放
 
+当 synchronized 修饰函数时，代码经过编译后，编译器会给函数设置 ACC_SYCHRONIZED 访问标识，用于声明此函数是一个同步函数
 
-### AQS 的原理？
+当线程执行函数时，如果发现函数有 ACC_SYCHRONIZED 标识，则会去获取锁；函数执行完成后会释放锁
 
+相当于在函数主体的前后隐式插入 monitorenter 和 monitorexit 指令
 
+### synchronized 的类锁和对象锁有什么区别？
 
-### ReentrantLock 和 synchronized 的区别？
+类锁也就是 Class 对象锁，所有对象共享同一个类锁
 
+不同的对象使用的对象锁不是同一个
 
+### synchronized 同步函数递归调用自身，这样可行吗？为什么？
+
+可行，synchronized 是可重入锁
+
+synchronized 底层是通过 Monitor 对象来实现锁机制的，Monitor 对象中的 state 字段表示持有锁的线程获取锁的次数
+
+synchronized 同步函数每次递归调用自身时，会将 Monitor 对象中的 state 字段值加一，记录锁的重入次数
+
+### synchronized 和 ReentrantLock 的区别？
+
+* **实现原理上**
+
+  synchronized 是依赖于 JVM 实现的，而 ReenTrantLock 是 JDK 实现的
+
+* **性能上**
+
+  在 JDK 1.6 优化 synchronized 之前，synchronized 的性能是比 ReenTrantLock 差很多的
+
+  但自从 synchronized 引入了偏向锁、轻量级锁、自旋锁后，二者的性能就差不多了
+
+  在两种方法都可用的情况下，官方甚至建议使用 synchronized，其实 synchronized 的优化感觉就是借鉴了 ReenTrantLock 中的 CAS 技术
+
+  都是试图在用户态就把加锁问题解决，避免进入内核态的线程阻塞
+
+* **便利性**
+
+  很明显 synchronized 的使用比较方便简洁，由编译器去保证加锁和释放锁
+
+  而 ReenTrantLock 需要开发者手动声明来加锁和释放锁，为了避免忘记释放锁造成死锁，所以最好在 finally 中释放锁
+
+* **锁的细粒度和灵活度**
+
+  很明显 ReenTrantLock 优于 synchronized
+
+但 ReentrantLock 有几个独有的功能：
+
+* ReenTrantLock 可以设置锁是公平锁还是非公平锁，而 synchronized 只能是非公平锁
+
+* ReenTrantLock 提供了一个 Condition 类，用于实现分组唤醒线程
+
+  而 synchronized 唤醒线程是随机的，无法设置
+
+* ReenTrantLock 提供了一种能够中断等待锁的线程的机制，通过 lock.lockInterruptibly() 实现
+
+[Synchronized 与 ReentrantLock 的区别！](https://cloud.tencent.com/developer/article/1458822)
 
 ### volatile 的作用？
 
@@ -4599,7 +4659,7 @@ volatile 是 Java 中最轻量的同步机制，可以解决线程可见性的�
 
 volatile 可以禁止指令重排，防止半初始化对象的出现
 
-### volatile 和 synchronized 相比有什么区别？
+### synchronized 和 volatile 的区别？
 
 volatile 保证了不同线程对变量进行操作时的可见性，即一个线程修改了某个变量的值，这新值对其他线程来说是立即可见的
 
@@ -4607,25 +4667,70 @@ volatile 保证了不同线程对变量进行操作时的可见性，即一个�
 
 synchronized 保证了多个线程在同一个时刻，只能有一个线程可以执行函数 / 代码块，它保证了线程对变量访问的可见性和排他性
 
-### synchronized、Lock、volatile 的区别？
+### CAS 机制？ABA 问题？
 
+CAS 即 Compare And Swap 的缩写，翻译成中文就是比较并交换
 
+其作用是让 CPU 比较内存中某个值是否和预期值相同，如果相同则将这个值更新为新值，如果不相同则不更新 (如果内存中的值与预期值不相同说明有其他线程更改了内存中的值)
 
-### CAS。必问，问原理以及ABA问题。
+CAS 是通过 C / C++ 调用 CPU 指令实现的，所以效率很高
 
+由于 CAS 在更新值时，会检查内存中的值是否发生变化，如果没有发生变化 (内存中的值 = 预期值) 则更新
 
+但如果内存中的值从 A --> B --> A，那么当 CAS 进行检查时会发现内存中的值没有发生变化，但实际上内存中的值变化了，这就是 ABA 问题
+
+ABA 问题的解决方案就是使用版本号
+
+在变量前面追加上版本号，每次变量更新时变量的版本号都加一，即 A --> B --> A 就变成了 1A --> 2B --> 3A
 
 ### 什么是死锁？产生死锁的条件是什么？
 
+死锁是指有两个或多个线程由于竞争资源而造成阻塞的现象，如果无外力作用 (例如关机)，这种局面就会一直持续下去，极度耗费系统资源，时间长了还有可能会导致设备硬件损坏
 
+产生死锁的四个必要条件：
 
-### Object的wait和notify。阻塞唤醒，一般会用一个代码或者具体的场景来询问如何保证多线程同步。
+* 互斥条件：一个资源每次只能被一个线程所使用
+* 请求与保持条件：当一个线程因请求资源而被阻塞时，对已获得的资源继续持有而不释放
+* 不剥夺条件：线程已获得的资源，在未使用完之前，不能被其他线程强行剥夺
+* 循环等待条件：若干线程之间形成一种头尾相接的循环等待资源关系 (闭环)
 
+这四个条件是死锁的必要条件，只要发生死锁，这些条件必然成立；而只要上述条件有一个不满足，就不会发生死锁
 
+### ThreadLocal 的原理？
 
-### ThreadLocal。原理、内存泄露等
+在 Java 的 Thread 类中，有一个 threadLocals 字段，其类型是 ThreadLocalMap
 
+ThreadLocalMap 是一个采用数组实现的 key-value 键值对集合
 
+通过 ThreadLocal 保存的数据会被保存在每个线程的 threadLocals 字段中，以当前 ThreadLocal 对象为 key 进行保存
+
+原理如下图所示：
+
+![](https://note.youdao.com/yws/api/personal/file/WEBbe4680977743e6705e86596ccc3605e8?method=download&shareKey=0468cb3981e820d06a12c68baaf01a3b)
+
+### ThreadLocal 发生内存泄漏的原因？
+
+由于 ThreadLocalMap 中的键值对以 ThreadLocal 对象为 key，且通过弱引用 ThreadLocal 对象
+
+当 ThreadLocal 对象不存在任何强引用时，ThreadLocal 对象势必会被 GC 所回收，这就会导致 ThreadLocalMap 中的键值对的 key 变为 null
+
+即使键值对的 key 变为 null，但键值对依旧强引用着 value；但由于 key 为 null，就无法再通过 key 访问到 value
+
+这样 ThreadLocalMap 中的键值对的 value 就存在着一条强引用链：
+
+Thread --> ThreaLocalMap --> Entry --> value
+
+只要线程不退出，value 就无法被 GC 所回收，造成内存泄漏
+
+只有当线程退出后，value 的强引用链才会断掉
+
+### synchronized 和 ThreadLocal 的区别？
+
+ThreadLocal 和 synchronized 都用于解决线程安全问题，可 ThreadLocal 与 synchronized 有着本质的差别
+
+synchronized 是利用锁机制，使变量在某一时间段内只能被一个线程访问
+
+而 ThreadLocal 为每个线程都提供了变量的副本，使得每个线程所访问到的并非同一个对象，这样就隔离了多个线程对数据的数据共享
 
 ## JVM
 
