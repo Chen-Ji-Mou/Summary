@@ -881,11 +881,15 @@ Activity 持有了 PhoneWindow，PhoneWindow 持有了 DecorView 和一些 windo
 
 Activity 中 View 的绘制流程是从 `ViewRootImpl.requestLayout()` 函数开始的
 
+View 的绘制流程也是通过主线程的 Handler 进行驱动的，当前绘制任务会被封装成一个 Runnable 添加到主线程的消息队列中，监听垂直同步信号
+
+当垂直同步信号发出后，绘制任务被执行，会调用 `performMeasure()`、`performLayout()`、`performDraw()` 这三个函数
+
+这三个函数分别会递归遍历整个视图树中的 View，执行 View 的 `onMeasure()`、`onLayout()`、`onDraw()` 函数回调
+
 `ViewRootImpl.requestLayout()` 函数运行逻辑如下图：
 
 ![](https://note.youdao.com/yws/api/personal/file/3AEA27E9FC9E4D2CBA2F2ACF9145F6CA?method=download&shareKey=a7d17ffdd33196dd3e6fbce9f44c3899)
-
-`performMeasure()`、`performLayout()`、`performDraw()` 函数会递归执行 view 树中所有 view 的 `onMeasure()`、`onLayout()`、`onDraw()` 函数
 
 `performMeasure()` 函数运行逻辑如下图：
 
@@ -1007,7 +1011,7 @@ View.post 首先会判断当前整个视图树的绘制是否完成 (判断 mAtt
 
 ### 使用 Glide 偶尔会出现内存溢出问题，请说说大概是什么原因？
 
-Glide 活动缓存中的资源跟随通过 `Glide#with` 函数传入的 context 的生命周期而变化
+Glide 活动缓存中的资源跟随通过 `Glide.with()` 函数传入的 context 的生命周期而变化
 
 如果传入的 context 不合适，会导致 Glide 活动缓存中的资源得不到回收，就有可能导致内存溢出
 
@@ -4345,11 +4349,33 @@ HashMap 的扩容开销会很大，需要遍历所有的元素，重新计算哈
 
 ### 为什么 HashMap 是 2 倍扩容？
 
+在 HashMap 的实现中，通过位运算法来获取桶号，这样就需要保证哈希表的大小始终是 2 的 n 次幂
 
+> 2 的 n 次幂减一的二进制每一位都是 1，进行位运算时可以充分散列，避免不必要的哈希冲突
+
+HashMap 中哈希表的默认容量是 16，采取 2 倍扩容的方式可以保证哈希表的大小始终是 2 的 n 次幂
+
+[HashMap底层的扩容机制（以及2倍扩容的原因）](https://blog.csdn.net/lzh_99999/article/details/105843313)
 
 ### HashMap 对于防止哈希冲突做过哪些优化？
 
+* 寻址算法优化
 
+  不优化的寻址算法：hash % n
+
+  优化后的寻址算法：hash & (n - 1)
+
+  优化依据：用与运算替代取模，提升性能
+
+* 哈希算法优化
+
+  不优化的哈希算法：key.hashCode()
+
+  优化后的哈希算法：(h = key.hashCode()) ^ (h >>> 16)
+
+  优化依据：key 的哈希值在很多时候下低位都是相同的，这将导致不必要的哈希冲突；将哈希值的高 16 位和低 16 位进行异或运算，使得哈希值的高低 16 位都参与了计算，减少哈希冲突出现的概率
+
+[hashMap之hash算法优化以及寻址算法的优化](https://blog.csdn.net/u011439839/article/details/104062346)
 
 ### 如何解决 HashMap 线程不安全？
 
@@ -4639,6 +4665,107 @@ String 类不能被重写，String 类是一个 final 类
 * 提高线程的可管理性：线程是稀缺资源，如果无限制地创建，不仅会消耗系统资源，还会降低系统的稳定性
 
   使用线程池可以进行统一分配、调优和监控线程
+
+### 常用线程池有哪些？各自特性是什么？
+
+#### FixedThreadPool
+
+FixedThreadPool 的特点是核心线程数 = 最大线程数，其实现是 `Executors.newFixedThreadPool()` 函数
+
+```java
+public static ExecutorService newFixedThreadPool(int nThreads)
+{
+	return new ThreadPoolExecutor(nThreads, nThreads,
+								  0L, TimeUnit.MILLISECONDS,
+								  new LinkedBlockingQueue<Runnable>());
+}
+```
+
+可以看到 FixedThreadPool 创建的线程池核心线程数 = 最大线程数，keepAliveTime = 0，阻塞队列采用了链表结构的有界队列
+
+FixedThreadPool 可以看作是固定线程数的线程池，线程数会从 0 开始创建，但池中的线程不会被销毁，池中的所有线程都是核心线程
+
+由于 FixedThreadPool 中的线程都是核心线程，因此 keepAliveTime 和 TimeUnit 参数对于 FixedThreadPool 来说没有任何意义
+
+#### SingleThreadPool
+
+SingleThreadPool 的特点是核心线程数 = 最大线程数 = 1，其实现是 `Executors.newSingleThreadExecutor()` 函数
+
+```java
+public static ExecutorService newSingleThreadExecutor()
+{
+	return new FinalizableDelegatedExecutorService
+		(new ThreadPoolExecutor(1, 1,
+								0L, TimeUnit.MILLISECONDS,
+								new LinkedBlockingQueue<Runnable>()));
+}
+```
+
+可以看到 SingleThreadPool 创建的线程池核心线程数 = 最大线程数 = 1，keepAliveTime = 0，阻塞队列采用了链表结构的有界队列
+
+由于 SingleThreadPool 的核心线程数 = 最大线程数 = 1，因此在 SingleThreadPool 池中只能有一个线程在运行，不管任务有多少，只会有一个线程来执行这些任务
+
+如果在执行过程中发生异常等情况导致线程被销毁，SingleThreadPool 也会重新创建一个线程来执行后续的任务
+
+SingleThreadPool 类似于单线程的串行执行，非常适合任务需要按被提交的顺序来执行的场景
+
+#### CachedThreadPool
+
+CachedThreadPool 的特点是核心线程数 = 0，最大线程数 = Integer.MAX_VALUE，其实现是 `Executors.newCachedThreadPool()` 函数
+
+```java
+public static ExecutorService newCachedThreadPool()
+{
+	return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+								  60L, TimeUnit.SECONDS,
+								  new SynchronousQueue<Runnable>());
+}
+```
+
+可以看到 CachedThreadPool 创建的线程池核心线程数 = 0，最大线程数 = Integer.MAX_VALUE，keepAliveTime = 60，阻塞队列采用了 SynchronousQueue 队列
+
+CachedThreadPool 的核心线程数 = 0，表示 CachedThreadPool 不会缓存线程，CachedThreadPool 中的所有线程如果在 60s 内没有执行任务就会被回收
+
+SynchronousQueue 是一个不存储元素的阻塞队列，因此最大线程数 Integer.MAX_VALUE 与任务等待队列 SynchronousQueue 的组合就能得到最大并发量
+
+当 CachedThreadPool 执行任务时，如果不存在空闲线程，任务不需要进入队列等待，线程池会马上新建线程执行任务
+
+CachedThreadPool 非常适合高并发的场景，例如在 OkHttp 的实现中就使用了 CachedThreadPool 来保证框架的吞吐量
+
+#### ScheduledThreadPool
+
+ScheduledThreadPool 的特点是支持定时 / 周期性执行任务，其实现是 `Executors.newScheduledThreadPool()` 函数
+
+```java
+public static ScheduledExecutorService newScheduledThreadPool(int corePoolSize)
+{
+	return new ScheduledThreadPoolExecutor(corePoolSize);
+}
+
+public ScheduledThreadPoolExecutor(int corePoolSize)
+{
+	super(corePoolSize, Integer.MAX_VALUE,
+		  DEFAULT_KEEPALIVE_MILLIS, MILLISECONDS,
+		  new DelayedWorkQueue());
+}
+```
+
+可以看到 ScheduledThreadPool 创建的线程池最大线程数 = Integer.MAX_VALUE，keepAliveTime = 10，阻塞队列采用了支持延时获取元素的无界队列
+
+#### SingleThreadScheduledPool
+
+SingleThreadScheduledPool 是 ScheduledThreadPool 的一个特例，核心线程数 = 1，其实现是 `Executors.newSingleThreadScheduledExecutor()` 函数
+
+```java
+public static ScheduledExecutorService newSingleThreadScheduledExecutor()
+{
+	return new DelegatedScheduledExecutorService(new ScheduledThreadPoolExecutor(1));
+}
+```
+
+可以看到 SingleThreadScheduledPool 创建的线程池核心线程数 = 1，最大线程数 = Integer.MAX_VALUE，keepAliveTime = 10，阻塞队列采用了支持延时获取元素的无界队列
+
+[java中常见的六种线程池详解](https://www.cnblogs.com/i-code/p/13917733.html)
 
 ## 并发
 
@@ -5268,3 +5395,7 @@ Java 中线程的状态有以下几种：
 * 终止 (terminated)：表示线程已经执行完毕
 
 ![](https://note.youdao.com/yws/api/personal/file/WEBdf6a2214103ddf74bf39a6660400cc4d?method=download&shareKey=2f7aa683d019c1bde372e5baa12c0135)
+
+## 内存管理
+
+### 什么是缺页中断？如何减少缺页中断出现的次数？
