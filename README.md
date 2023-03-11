@@ -436,6 +436,16 @@ ContentProvider 不保证线程安全
 
 [传送门](#ContentProvider 如何实现 IPC？)
 
+### 第三方库无侵入获取应用全局 Context (ApplicationContext)
+
+[Android | 使用 ContentProvider 无侵入获取 Context](https://juejin.cn/post/6887980244389593096#heading-11)
+
+根据 ContentProvider 启动流程我们知道，在应用进程启动完成后，会调用 `ActivityThread.handleBindApplication` 函数进行初始化
+
+在 `ActivityThread.handleBindApplication` 函数中会先创建全局 Application 对象再初始化所有经过 AndroidManifest 注册的 ContentProvider 并传入 Application
+
+因此我们可以在第三方库的 AndroidManifest 文件中注册一个 ContentProvider，在 `ContentProvider.onCreate` 回调中获取 ApplicationContext (`getContext().getApplicationContext()`)
+
 ## Handler
 
 [Handler 浅析](https://juejin.cn/post/6965416964634181663)
@@ -4688,6 +4698,8 @@ FixedThreadPool 可以看作是固定线程数的线程池，线程数会从 0 �
 
 由于 FixedThreadPool 中的线程都是核心线程，因此 keepAliveTime 和 TimeUnit 参数对于 FixedThreadPool 来说没有任何意义
 
+FixedThreadPool 是固定数量线程的线程池，其核心线程数 = 最大线程数，且 keepAliveTime 为 0，适合线程稳定的场景
+
 #### SingleThreadPool
 
 SingleThreadPool 的特点是核心线程数 = 最大线程数 = 1，其实现是 `Executors.newSingleThreadExecutor()` 函数
@@ -4708,7 +4720,7 @@ public static ExecutorService newSingleThreadExecutor()
 
 如果在执行过程中发生异常等情况导致线程被销毁，SingleThreadPool 也会重新创建一个线程来执行后续的任务
 
-SingleThreadPool 类似于单线程的串行执行，非常适合任务需要按被提交的顺序来执行的场景
+SingleThreadPool 类似于单线程的串行执行，非常适合线程同步操作，任务需要按被提交的顺序来执行的场景
 
 #### CachedThreadPool
 
@@ -4753,36 +4765,21 @@ public ScheduledThreadPoolExecutor(int corePoolSize)
 
 可以看到 ScheduledThreadPool 创建的线程池最大线程数 = Integer.MAX_VALUE，keepAliveTime = 10，阻塞队列采用了支持延时获取元素的无界队列
 
-#### SingleThreadScheduledPool
-
-SingleThreadScheduledPool 是 ScheduledThreadPool 的一个特例，核心线程数 = 1，其实现是 `Executors.newSingleThreadScheduledExecutor()` 函数
-
-```java
-public static ScheduledExecutorService newSingleThreadScheduledExecutor()
-{
-	return new DelegatedScheduledExecutorService(new ScheduledThreadPoolExecutor(1));
-}
-```
-
-可以看到 SingleThreadScheduledPool 创建的线程池核心线程数 = 1，最大线程数 = Integer.MAX_VALUE，keepAliveTime = 10，阻塞队列采用了支持延时获取元素的无界队列
+很明显 ScheduledThreadPool 非常适合定时任务的场景
 
 [java中常见的六种线程池详解](https://www.cnblogs.com/i-code/p/13917733.html)
 
-## 并发
+## 多线程
 
 ### synchronized 的底层原理？
 
-在 JVM 中，每一个对象 (包括 Class 对象) 都关联着一个 Monitor 对象
+synchronized 底层是通过**对象监视器 (Monitor) **来实现锁机制的
 
-synchronized 底层是通过 Monitor 对象来实现锁机制的
+在 JVM 中通过进入、退出**对象监视器 (Monitor) **来实现对同步方法和同步块的同步，而对象监视器的本质依赖于底层操作系统的**互斥锁 (Mutex Lock) **实现
 
-当代码运行到 synchronized 关键字时，线程会执行 monitorenter 指令 (JVM 指令) 去获取锁
+具体实现是在编译之后在同步方法调用前加入一个 `monitor.enter` 指令，在退出方法和异常处插入 `monitor.exit` 的指令
 
-如果线程可以获取到锁，则将 Monitor 对象中的 owner 字段设置 (CAS 操作) 为当前线程 id (owner 表示持有锁的线程)，并将 Monitor 对象中的 state 字段值加一 (state 表示持有锁的线程获取锁的次数，保证了锁的可重入性)
-
-如果线程没有获取到锁，则进入 Monitor 对象的 EntryList 队列进行等待 (阻塞)
-
-当持有锁的线程退出 synchronized 范围时，会执行 monitorexit 指令 (JVM 指令)，将 Monitor 对象中的 state 字段值减一；如果 state = 0，则释放锁，重置 Monitor 对象中的 owner 字段，并唤醒 EntryList 队列中的线程继续抢夺锁
+对于没有获取到锁的线程将会阻塞到方法入口处，直到获取锁的线程 `monitor.exit` 之后才能尝试获取锁
 
 ### synchronized 修饰静态函数和修饰非静态函数有什么区别？
 
@@ -4792,27 +4789,27 @@ synchronized 修饰非静态函数相当于是对象锁，锁住的是当前类�
 
 ### synchronized 修饰代码块和修饰函数有什么区别？
 
-当 synchronized 修饰代码块时，代码经过编译后，编译器会给代码块的前后插入 monitorenter 和 monitorexit 指令，进行锁的获取和释放
+当 synchronized 修饰代码块时，代码经过编译后，编译器会给代码块的前后插入 `monitor.enter` 和 `monitor.exit` 指令，进行锁的获取和释放
 
 当 synchronized 修饰函数时，代码经过编译后，编译器会给函数设置 ACC_SYCHRONIZED 访问标识，用于声明此函数是一个同步函数
 
 当线程执行函数时，如果发现函数有 ACC_SYCHRONIZED 标识，则会去获取锁；函数执行完成后会释放锁
 
-相当于在函数主体的前后隐式插入 monitorenter 和 monitorexit 指令
+相当于在函数主体的前后隐式插入 `monitor.enter` 和 `monitor.exit` 指令
 
 ### synchronized 的类锁和对象锁有什么区别？
 
-类锁也就是 Class 对象锁，所有对象共享同一个类锁
+类锁也就是 Class 对象锁，同一个类的所有对象共享同一个类锁
 
-不同的对象使用的对象锁不是同一个
+不同类的对象使用的对象锁不是同一个
 
 ### synchronized 同步函数递归调用自身，这样可行吗？为什么？
 
 可行，synchronized 是可重入锁
 
-synchronized 底层是通过 Monitor 对象来实现锁机制的，Monitor 对象中的 state 字段表示持有锁的线程获取锁的次数
+synchronized 底层是通过**对象监视器 (Monitor) **来实现锁机制的，Monitor 中的 state 字段表示持有锁的线程获取锁的次数
 
-synchronized 同步函数每次递归调用自身时，会将 Monitor 对象中的 state 字段值加一，记录锁的重入次数
+synchronized 同步函数每次递归调用自身时，会将 Monitor 中的 state 字段值加一，记录锁的重入次数
 
 ### synchronized 和 ReentrantLock 的区别？
 
@@ -4851,6 +4848,22 @@ synchronized 同步函数每次递归调用自身时，会将 Monitor 对象中�
 * ReenTrantLock 提供了一种能够中断等待锁的线程的机制，通过 lock.lockInterruptibly() 实现
 
 [Synchronized 与 ReentrantLock 的区别！](https://cloud.tencent.com/developer/article/1458822)
+
+### Java内存模型 (JMM) 是什么？
+
+在不同的硬件生产商和不同的操作系统下，内存的访问有一定的差异，会造成相同的代码运行在不同的系统上会出现各种问题
+
+因此Java虚拟机规范中定义了Java内存模型 (Java Memory Model，JMM)，用于屏蔽掉各种硬件和操作系统的内存访问差异，以实现让Java程序在各种平台下都能达到一致的并发效果，JMM规范了Java虚拟机与计算机内存是如何协同工作的：规定了一个线程如何和何时可以看到由其他线程修改过后的共享变量的值，以及在必须时如何同步的访问共享变量
+
+Java内存模型规定所有的变量都存储在主内存中，包括实例变量，静态变量，但是不包括局部变量和方法参数
+
+每个线程都有自己的工作内存，线程的工作内存保存了该线程用到的变量和主内存的副本拷贝，线程对变量的操作都在工作内存中进行。线程不能直接读写主内存中的变量
+
+不同的线程之间也无法访问对方工作内存中的变量。线程之间变量值的传递均需要通过主内存来完成
+
+每个线程的工作内存都是独立的，线程操作数据只能在工作内存中进行，然后刷回到主存。这是 Java 内存模型定义的线程基本工作方式
+
+![img](https://pic3.zhimg.com/80/v2-f36f366c07a6188ea3fdefc794ba021a_720w.webp)
 
 ### volatile 的作用？
 
@@ -4937,9 +4950,7 @@ ThreadLocalMap 是一个采用数组实现的 key-value 键值对集合
 
 Thread --> ThreaLocalMap --> Entry --> value
 
-只要线程不退出，value 就无法被 GC 所回收，造成内存泄漏
-
-只有当线程退出后，value 的强引用链才会断掉
+只要线程不退出，value 就无法被 GC 所回收，造成内存泄漏；只有当线程退出后，value 的强引用链才会断掉
 
 ### synchronized 和 ThreadLocal 的区别？
 
@@ -4948,6 +4959,8 @@ ThreadLocal 和 synchronized 都用于解决线程安全问题，可 ThreadLocal
 synchronized 是利用锁机制，使变量在某一时间段内只能被一个线程访问
 
 而 ThreadLocal 为每个线程都提供了变量的副本，使得每个线程所访问到的并非同一个对象，这样就隔离了多个线程对数据的数据共享
+
+可以说 synchronized 是通过时间来换取空间，ThreadLocal 是通过空间来换取时间
 
 ## JVM
 
@@ -5021,23 +5034,18 @@ JVM 将堆内存分为了新生代和老年代两部分 (新生代 : 老年代 �
 
 当一个对象与 GC Roots 没有任何引用链相连时，则说明此对象已经不可用了，需要被回收
 
-GC Roots 对象包含以下几种：
+GC Roots 对象主要是以下几种：
 
-* 虚拟机栈 (栈帧中的本地变量表) 中引用的对象
+* 正在运行的方法中所引用的对象
 
-* 方法区中类静态属性引用的对象
+* static 对象
 
-* 方法区中常量引用的对象
+* final 对象
 
-* 本地方法栈中 JNI (即 Native 函数) 引用的对象
+* Native 方法中所引用的对象
 
-* JVM 的内部引用 (例如：Class 对象，异常对象 NullPointException、OutofMemoryError，系统类加载器)
+* 同步锁对象 (synchronized)
 
-* 所有被同步锁 (synchronized) 持有的对象
-
-* JVM 内部的 JMXBean、JVMTI 中注册的回调、本地代码缓存等
-
-* JVM 实现中的“临时性”对象，跨代引用的对象
 
 ### 什么是类加载机制？
 
@@ -5051,9 +5059,7 @@ JVM 把描述类的数据从 Class 文件加载到内存，并对数据进行校
 
 双亲委派机制是：
 
-> 当一个类加载器收到了类加载的请求时，它不会直接去加载指定类，而是把这个请求委托给自己的父加载器去执行，依次向上
->
-> 只有当父加载器在它的搜索范围中没有找到目标类时，即无法加载目标类，才会由子加载器来完成类的加载
+**当一个类加载器收到了类加载的请求时，它不会直接去加载指定类，而是把这个请求委托给自己的父加载器去执行，依次向上；只有当父加载器在它的搜索范围中没有找到目标类时，即无法加载目标类，才会由子加载器来完成类的加载**
 
 双亲委派机制有些类似于设计模式中的责任链模式，解决了类加载流程中的先后执行关系
 
@@ -5344,9 +5350,190 @@ TCP 是面向连接的协议
 
 ## DNS
 
-### DNS 解析过程？
+[通俗易懂，了解什么是DNS及查询过程](https://zhuanlan.zhihu.com/p/436199902)
 
+### DNS 是什么？是如何工作的？
 
+DNS (Domain Names System)，域名系统，是互联网一项服务，是进行域名和与之相对应的 IP 地址进行转换的服务器
+
+简单来讲，`DNS` 相当于一个翻译官，负责将域名翻译成 `ip` 地址
+
+- IP 地址：一长串能够唯一地标记网络上的计算机的数字
+- 域名：是由一串用点分隔的名字组成的 Internet 上某一台计算机或计算机组的名称，用于在数据传输时对计算机的定位标识
+
+![img](https://pic1.zhimg.com/80/v2-9983d96223b90eb1603350d2867b242c_720w.webp)
+
+域名是一个具有层次的结构，从上到下一次为根域名、顶级域名、二级域名、三级域名…
+
+![img](https://pic3.zhimg.com/80/v2-72c0ceac640030e42288c05846d50ef6_720w.webp)
+
+例如 `www.xxx.com`，`www` 为三级域名、`xxx` 为二级域名、`com` 为顶级域名，系统为用户做了兼容，域名末尾的根域名 `.` 一般不需要输入
+
+在域名的每一层都会有一个域名服务器，如下图：
+
+![img](https://pic3.zhimg.com/80/v2-0f2a0172db8d5f7da7e9de7656cb7f96_720w.webp)
+
+除此之外，还有电脑默认的本地域名服务器
+
+DNS 查询的方式有两种：
+
+- 递归查询：如果 A 请求 B，那么 B 作为请求的接收者一定要给 A 想要的答案
+
+![img](https://pic2.zhimg.com/80/v2-04237b37ed45f1d8aef2204e96772a4d_720w.webp)
+
+- 迭代查询：如果接收者 B 没有请求者 A 所需要的准确内容，接收者 B 将告诉请求者 A，如何去获得这个内容，但是自己并不去发出请求
+
+![img](https://pic2.zhimg.com/80/v2-d8b834638f40925312f3f45ccb2da139_720w.webp)
+
+在域名服务器解析的时候，使用缓存保存域名和 `IP` 地址的映射
+
+计算机中 DNS 的记录也分成了两种缓存方式：
+
+- 浏览器缓存：浏览器在获取网站域名的实际 IP 地址后会对其进行缓存，减少网络请求的损耗
+- 操作系统缓存：操作系统的缓存其实是用户自己配置的 `hosts` 文件
+
+DNS 解析域名整体流程如下图所示：
+
+![img](https://pic1.zhimg.com/80/v2-3a1d48701384aa9399e0b2654f3b8fe4_720w.webp)
+
+当用户在地址栏键入并敲下回车键之后，域名解析就开始了
+
+**第一步：检查浏览器缓存中是否缓存过该域名对应的IP地址**
+
+用户通过浏览器浏览过某网站之后，浏览器就会自动缓存该网站域名对应的地址，当用户再次访问的时候，浏览器就会从缓存中查找该域名对应的IP地址，因为缓存不仅是有大小限制，而且还有时间限制（域名被缓存的时间通过属性来设置），所以存在域名对应的找不到的情况。当浏览器从缓存中找到了该网站域名对应的地址，那么整个解析过程结束，如果没有找到，将进行下一步骤。对于的缓存时间问题，不宜设置太长的缓存时间，时间太长，如果域名对应的发生变化，那么用户将在一段时间内无法正常访问到网站，如果太短，那么又造成频繁解析域名
+
+**第二步：如果在浏览器缓存中没有找到IP，那么将继续查找本机系统是否缓存过IP**
+
+如果第一个步骤没有完成对域名的解析过程，那么浏览器会去系统缓存中查找系统是否缓存过这个域名对应的地址，也可以理解为系统自己也具备域名解析的基本能力。在系统中，可以通过设置文件来将域名手动绑定到某上，文件位置在。对于普通用户，并不推荐自己手动绑定域名和，对于开发者来说，通过绑定域名和，可以轻松切换环境，可以从测试环境切换到开发环境，方便开发和测试。在系统中，黑客常常修改他的电脑的文件，将用户常常访问的域名绑定到他指定的上，从而实现了本地解析，导致这些域名被劫持。在或者系统中，文件在，修改该文件也可以实现同样的目的
+
+前两步都是在本机上完成的，所以没有在上面示例图上展示出来，从第三步开始，才正在地向远程DNS服务器发起解析域名的请求
+
+**第三步：向本地域名解析服务系统发起域名解析的请求**
+
+如果在本机上无法完成域名的解析，那么系统只能请求本地域名解析服务系统进行解析，本地域名系统一般都是本地区的域名服务器，比如你连接的校园网，那么域名解析系统就在你的校园机房里，如果你连接的是电信、移动或者联通的网络，那么本地域名解析服务器就在本地区，由各自的运营商来提供服务。对于本地服务器地址，系统使用命令就可以查看，在和系统下，直接使用命令来查看服务地址。一般都缓存了大部分的域名解析的结果，当然缓存时间也受域名失效时间控制，大部分的解析工作到这里就差不多已经结束了，负责了大部分的解析工作
+
+**第四步：向根域名解析服务器发起域名解析请求**
+
+本地域名解析器还没有完成解析的话，那么本地域名解析服务器将向根域名服务器发起解析请求。（欢迎关注公众号：网络技术联盟圈）
+
+**第五步：根域名服务器返回gTLD域名解析服务器地址**
+
+本地域名解析向根域名服务器发起解析请求，根域名服务器返回的是所查域的通用顶级域（）地址，常见的通用顶级域有、、、等
+
+**第六步：向gTLD服务器发起解析请求**
+
+本地域名解析服务器向gTLD服务器发起请求
+
+**第七步：gTLD服务器接收请求并返回Name Server服务器**
+
+服务器接收本地域名服务器发起的请求，并根据需要解析的域名，找到该域名对应的域名服务器，通常情况下，这个服务器就是你注册的域名服务器，那么你注册的域名的服务商的服务器将承担起域名解析的任务
+
+**第八步：Name Server服务器返回IP地址给本地服务器**
+
+服务器查找域名对应的地址，将地址连同值返回给本地域名服务器
+
+**第九步：本地域名服务器缓存解析结果**
+
+本地域名服务器缓存解析后的结果，缓存时间由时间来控制
+
+**第十步：返回解析结果给用**
+
+解析结果将直接返回给用户，用户系统将缓存该地址，缓存时间由来控制，至此，解析过程结束
+
+## IP
+
+### 同一局域网内 A主机 ping B主机的流程是怎样的？
+
+ping 是基于 ICMP 协议工作的，所以要明白 ping 的工作，首先我们先来熟悉 **ICMP 协议**
+
+ICMP 全称是 **Internet Control Message Protocol**，也就是**互联网控制报文协议**
+
+里面有个关键词 —— **控制**，如何控制的呢？
+
+网络包在复杂的网络传输环境里，常常会遇到各种问题。当遇到问题的时候，总不能死的不明不白，没头没脑的作风不是计算机网络的风格。所以需要传出消息，报告遇到了什么问题，这样才可以调整传输策略，以此来控制整个局面。
+
+ICMP 主要的功能包括：**确认 IP 包是否成功送达目标地址、报告发送过程中 IP 包被废弃的原因和改善网络设置等**
+
+在 `IP` 通信中如果某个 `IP` 包因为某种原因未能达到目标地址，那么这个具体的原因将**由 ICMP 负责通知**
+
+![ICMP 目标不可达消息](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/ping/4.jpg)
+
+如上图例子，主机 `A` 向主机 `B` 发送了数据包，由于某种原因，途中的路由器 `2` 未能发现主机 `B` 的存在，这时，路由器 `2` 就会向主机 `A` 发送一个 `ICMP` 目标不可达数据包，说明发往主机 `B` 的包未能成功
+
+ICMP 的这种通知消息会使用 `IP` 进行发送 
+
+因此，从路由器 `2` 返回的 ICMP 包会按照往常的路由控制先经过路由器 `1` 再转发给主机 `A` 。收到该 ICMP 包的主机 `A` 则分解 ICMP 的首部和数据域以后得知具体发生问题的原因
+
+ICMP 报文是封装在 IP 包里面，它工作在网络层，是 IP 协议的助手
+
+![ICMP 报文](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/ping/5.jpg)
+
+ICMP 包头的**类型**字段，大致可以分为两大类：
+
+- 一类是用于诊断的查询消息，也就是「**查询报文类型**」
+- 另一类是通知出错原因的错误消息，也就是「**差错报文类型**」
+
+![常见的 ICMP 类型](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/ping/6.jpg)
+
+`ping` 是利用**回送消息**实现的
+
+回送消息用于进行通信的主机或路由器之间，判断所发送的数据包是否已经成功到达对端的一种消息
+
+![ICMP 回送消息](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/ping/7.jpg)
+
+可以向对端主机发送**回送请求**的消息 (`ICMP Echo Request Message`，类型 `8`)，也可以接收对端主机发回来的**回送应答**消息 (`ICMP Echo Reply Message`，类型 `0`)
+
+![ICMP 回送请求和回送应答报文](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/ping/8.jpg)
+
+相比原生的 ICMP，这里多了两个字段：
+
+- **标识符**：用以区分是哪个应用程序发 ICMP 包，比如用进程 `PID` 作为标识符；
+- **序号**：序列号从 `0` 开始，每发送一次新的回送请求就会加 `1`， 可以用来确认网络包是否有丢失。
+
+在**选项数据**中，`ping` 还会存放发送请求的时间值，来计算往返时间，说明路程的长短
+
+![主机 A ping 主机 B](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/ping/12.jpg)
+
+ping 命令执行的时候，源主机首先会构建一个 **ICMP 回送请求消息**数据包
+
+ICMP 数据包内包含多个字段，最重要的是两个：
+
+- 第一个是**类型**，对于回送请求消息而言该字段为 `8`；
+- 另外一个是**序号**，主要用于区分连续 ping 的时候发出的多个数据包
+
+每发出一个请求数据包，序号会自动加 `1`。为了能够计算往返时间 `RTT`，它会在报文的数据部分插入发送时间
+
+![主机 A 的 ICMP 回送请求报文](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/ping/13.jpg)
+
+然后，由 ICMP 协议将这个数据包连同地址 192.168.1.2 一起交给 IP 层。IP 层将以 192.168.1.2 作为**目的地址**，本机 IP 地址作为**源地址**，**协议**字段设置为 `1` 表示是 `ICMP` 协议，再加上一些其他控制信息，构建一个 `IP` 数据包
+
+![主机 A 的 IP 层数据包](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/ping/14.jpg)
+
+接下来，需要加入 `MAC` 头。如果在本地 ARP 映射表中查找出 IP 地址 192.168.1.2 所对应的 MAC 地址，则可以直接使用；如果没有，则需要发送 `ARP` 协议查询 MAC 地址，获得 MAC 地址后，由数据链路层构建一个数据帧，目的地址是 IP 层传过来的 MAC 地址，源地址则是本机的 MAC 地址；还要附加上一些控制信息，依据以太网的介质访问规则，将它们传送出去。
+
+![主机 A 的 MAC 层数据包](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/ping/15.jpg)
+
+主机 `B` 收到这个数据帧后，先检查它的目的 MAC 地址，并和本机的 MAC 地址对比，如符合，则接收，否则就丢弃
+
+接收后检查该数据帧，将 IP 数据包从帧中提取出来，交给本机的 IP 层。同样，IP 层检查后，将有用的信息提取后交给 ICMP 协议
+
+主机 `B` 会构建一个 **ICMP 回送响应消息**数据包，回送响应数据包的**类型**字段为 `0`，**序号**为接收到的请求数据包中的序号，然后再发送出去给主机 A
+
+![主机 B 的 ICMP 回送响应报文](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/ping/16.jpg)
+
+在规定的时候间内，源主机如果没有接到 ICMP 的应答包，则说明目标主机不可达；如果接收到了 ICMP 回送响应消息，则说明目标主机可达
+
+此时，源主机会检查，用当前时刻减去该数据包最初从源主机上发出的时刻，就是 ICMP 数据包的时间延迟
+
+针对上面发送的事情，总结成了如下图：
+
+![主机 A ping 主机 B 期间发送的事情](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/ping/17.png)
+
+当然这只是最简单的，同一个局域网里面的情况。如果跨网段的话，还会涉及网关的转发、路由器的转发等等
+
+但是对于 ICMP 的头来讲，是没什么影响的。会影响的是根据目标 IP 地址，选择路由的下一跳，还有每经过一个路由器到达一个新的局域网，需要换 MAC 头里面的 MAC 地址
+
+说了这么多，可以看出 ping 这个程序是使用了 ICMP 里面的 **ECHO REQUEST (类型为 8) 和 ECHO REPLY (类型为 0)**
 
 # 操作系统
 
