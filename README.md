@@ -984,6 +984,7 @@ View.post 首先会判断当前整个视图树的绘制是否完成 (判断 mAtt
 
 ### 实现一个图片加载框架，需要考虑什么？
 
+- 监听 Activity 的生命周期
 - 异步加载：需要两个线程池，一个用于网络加载，一个用于磁盘和内存加载
 - 线程切换：Handler
 - 缓存策略：三级缓存
@@ -1002,6 +1003,10 @@ View.post 首先会判断当前整个视图树的绘制是否完成 (判断 mAtt
 ###  view 的大小比图片小如何优化？
 
 根据 view 的大小对于图片的分辨率进行压缩
+
+### Glide 如何监听 Activity 生命周期？
+
+Glide 会通过 `with` 函数传入的 context 获取到 Activity 的 FragmentManager，向其中加入一个空白的 Fragment 以此来监听 Activity 的生命周期变化
 
 ### Glide 是如何实现图片加载优化的？
 
