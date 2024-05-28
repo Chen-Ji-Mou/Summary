@@ -4309,7 +4309,39 @@ public class ANRWatchDog extends Thread
 
 ### APP 打包流程你有了解吗？其中有哪些关键的环节？
 
+## ADB 指令
 
+* `adb shell mount -o rm,remount /` ：重新将根目录进行挂载，获取根目录的读写权限（需要root权限）
+* `adb shell am start -n <Activity的全类名>`：启动指定的Activity
+* `adb shell am startservice -n <Service的全类名>`：启动指定的Service
+* `adb shell content call --uri <ContentProvider的authorities> --method <约定的名称>`：调用指定ContentProvider中指定的函数
+* `adb shell am broadcast -a <Action名称> --es <EXTRA_KEY> <EXTRA_STRING_VALUE>`：发送指定Action的广播并附带参数
+* `adb shell am force-stop <应用包名>`：强行终止指定包名的进程
+* `adb shell pm clear <应用包名>`：清除指定包名应用的所有在/data/data下的数据，包括应用私有目录
+* `adb shell pm install <apk路径>`：安装指定路径的apk
+* `adb shell pm install -r -d <apk路径>`：强行安装覆盖已有版本的apk
+* `adb shell pm uninstall <应用包名>`：卸载指定包名的应用
+* `adb shell pm dump <应用包名> | findstr version`：查看指定包名应用的版本号
+* `adb shell pm path <应用包名>`：查看应用的安装路径
+* `adb shell ps -e | findstr <应用包名>`：查看指定包名的进程是否正常运行
+* `adb shell dumpsys meminfo <应用包名>`：查看指定应用包名的内存占用信息
+* `adb shell dumpsys activity activities | findstr <应用包名>`：查看指定包名应用中所有正在运行的Activity
+* `adb shell dumpsys activity services | findstr <应用包名>`：查看指定包名应用中所有正在运行的Service
+* `adb shell dumpsys activity providers | findstr <应用包名>`：查看指定包名应用中所有正在运行的ContentProvider
+* `adb shell dumpsys activity top | findstr ACTIVITY`：获取当前界面的Activity
+* `adb shell input text <文本>`：向设备输入文本
+* `adb shell keyevent <KEY_CODE>`：向设备输入一个按键
+* `adb shell uiautomator dump <指定路径>`：导出当前页面的XML信息
+* `adb shell dumpsys activity | find "mFocusedActivity"`：查看前台应用包名，适用于Android 7.0以下
+* `adb shell dumpsys activity | find "mResumedActivity"`：查看前台应用包名，适用于Android 8.0以上
+* `adb shell getprop ro.build.version.release`：获取设备Android系统版本
+* `adb shell wm size`：获取设备屏幕分辨率
+* `adb shell serprop debug.layout true/false`：开启或关闭布局边界绘制
+* `adb shell setprop debug.hwui.profile true/false`：开启或关闭GPU呈现模式
+* `adb shell setprop debug.hwui.profile visual_bars/visual_lines`：使用GPU呈现模式的条形图
+* `adb shell setprop debug.hwui.overdraw show/false`：开启或关闭GPU过度绘制显示
+* `adb shell top`：实时查看CPU的状态
+* `adb shell screenshot -p <指定路径>`：进行屏幕截图并保存至指定路径
 
 # Java
 
